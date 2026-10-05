@@ -13,7 +13,7 @@ import android.os.Build
 import java.util.Calendar
 
 object Reminders {
-    const val CHANNEL_ID = "task_alarm_channel_v2"
+    const val CHANNEL_ID = "task_alarm_channel_v3"
 
     fun codeAlarm(id: Int) = id * 10
     fun codeDone(id: Int) = id * 10 + 1
@@ -24,21 +24,25 @@ object Reminders {
     fun createChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            try {
+                nm.deleteNotificationChannel("task_alarm_channel_v2")
+            } catch (e: Exception) {
+            }
+            val sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Alarmes des tâches",
+                "Rappels des tâches",
                 NotificationManager.IMPORTANCE_HIGH
             )
-            channel.description = "Alarmes plein écran des tâches"
+            channel.description = "Rappels plein écran des tâches"
             channel.enableVibration(true)
-            channel.vibrationPattern = longArrayOf(0, 700, 400, 700)
+            channel.vibrationPattern = longArrayOf(0, 500, 300, 500)
             channel.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             channel.setBypassDnd(true)
             channel.setSound(
                 sound,
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()
             )
