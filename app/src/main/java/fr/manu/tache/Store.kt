@@ -3,6 +3,7 @@ package fr.manu.tache
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.Calendar
 
 data class Task(
     val id: Int,
@@ -22,11 +23,52 @@ object TaskStore {
     private const val PREFS = "tache_prefs"
     private const val KEY = "tasks"
     private const val KEY_ID = "next_id"
+    private const val KEY_SEEDED = "seeded_v1"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    private fun at(y: Int, m: Int, d: Int, h: Int, mi: Int): Long {
+        val c = Calendar.getInstance()
+        c.clear()
+        c.set(y, m - 1, d, h, mi, 0)
+        return c.timeInMillis
+    }
+
+    private fun seedIfNeeded(context: Context) {
+        val p = prefs(context)
+        if (p.getBoolean(KEY_SEEDED, false)) return
+        p.edit().putBoolean(KEY_SEEDED, true).apply()
+        if ((p.getString(KEY, "[]") ?: "[]") != "[]") return
+
+        val base = listOf(
+            Task(0, "appeler Laurent pour caller un rendez-vous pour la visite du terrain",
+                at(2026, 10, 6, 8, 55)),
+            Task(0, "Rdv domicile Mr et Mme Marquenet 29 rue des grilles a fondettes a 10 h le mercredi 07 oct",
+                at(2026, 10, 6, 20, 3)),
+            Task(0, "voir comment dessiner le toit Brohan",
+                at(2026, 10, 14, 9, 10)),
+            Task(0, "Remplacement interphone jeudi 29 octobre de 8h30 a 17h\nSatellite 37 : 02.47.50.78.48",
+                at(2026, 10, 28, 10, 12), priority = 2),
+            Task(0, "Déclaration mensuelle URSSAF",
+                at(2026, 11, 1, 9, 5), repeat = "month"),
+            Task(0, "Payer loyer",
+                at(2026, 11, 1, 9, 10), repeat = "month"),
+            Task(0, "Pension alimentaire 888 €",
+                at(2026, 11, 1, 9, 10), repeat = "month")
+        )
+        var id = p.getInt(KEY_ID, 1)
+        val list = mutableListOf<Task>()
+        for (t in base) {
+            list.add(t.copy(id = id))
+            id++
+        }
+        p.edit().putInt(KEY_ID, id).apply()
+        saveAll(context, list)
+    }
+
     fun all(context: Context): MutableList<Task> {
+        seedIfNeeded(context)
         val raw = prefs(context).getString(KEY, "[]") ?: "[]"
         val list = mutableListOf<Task>()
         val arr = JSONArray(raw)
