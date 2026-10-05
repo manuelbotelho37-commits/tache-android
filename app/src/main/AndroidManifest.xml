@@ -10,7 +10,7 @@
 
     <application
         android:label="Tâche"
-        android:icon="@android:drawable/ic_lock_idle_alarm"
+        android:icon="@mipmap/ic_launcher"
         android:theme="@style/Theme.AppCompat.DayNight.NoActionBar"
         android:allowBackup="false">
 
