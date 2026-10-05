@@ -340,4 +340,12 @@ class MainActivity : AppCompatActivity() {
                     task = TaskStore.add(this, name, time, repeat)
                 }
                 if (time <= System.currentTimeMillis()) {
-                    Toast.makeText(this, "Cette heure est déjà passée
+                    Toast.makeText(this, "Cette heure est déjà passée", Toast.LENGTH_LONG).show()
+                }
+                Reminders.schedule(this, task)
+                refresh()
+            }
+            .setNegativeButton("Annuler", null)
+            .show()
+    }
+}
