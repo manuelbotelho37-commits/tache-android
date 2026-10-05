@@ -9,7 +9,13 @@ data class Task(
     val title: String,
     val time: Long,
     val done: Boolean = false,
-    val repeat: String = "none"
+    val repeat: String = "none",
+    val type: String = "task",
+    val priority: Int = 0,
+    val paused: Boolean = false,
+    val note: String = "",
+    val link: String = "",
+    val files: List<String> = emptyList()
 )
 
 object TaskStore {
@@ -17,20 +23,39 @@ object TaskStore {
     private const val KEY = "tasks"
     private const val KEY_ID = "next_id"
 
+    private fun prefs(context: Context) =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
     fun all(context: Context): MutableList<Task> {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val raw = prefs.getString(KEY, "[]") ?: "[]"
+        val raw = prefs(context).getString(KEY, "[]") ?: "[]"
         val list = mutableListOf<Task>()
         val arr = JSONArray(raw)
         for (i in 0 until arr.length()) {
             val o = arr.getJSONObject(i)
+            val r = o.optString("repeat", "none")
+            val rep = when (r) {
+                "daily" -> "day"
+                "weekly" -> "week"
+                else -> r
+            }
+            val files = mutableListOf<String>()
+            val fa = o.optJSONArray("files")
+            if (fa != null) {
+                for (k in 0 until fa.length()) files.add(fa.getString(k))
+            }
             list.add(
                 Task(
-                    o.getInt("id"),
-                    o.getString("title"),
-                    o.getLong("time"),
-                    o.optBoolean("done", false),
-                    o.optString("repeat", "none")
+                    id = o.getInt("id"),
+                    title = o.getString("title"),
+                    time = o.getLong("time"),
+                    done = o.optBoolean("done", false),
+                    repeat = rep,
+                    type = o.optString("type", "task"),
+                    priority = o.optInt("priority", 0),
+                    paused = o.optBoolean("paused", false),
+                    note = o.optString("note", ""),
+                    link = o.optString("link", ""),
+                    files = files
                 )
             )
         }
@@ -46,23 +71,30 @@ object TaskStore {
             o.put("time", t.time)
             o.put("done", t.done)
             o.put("repeat", t.repeat)
+            o.put("type", t.type)
+            o.put("priority", t.priority)
+            o.put("paused", t.paused)
+            o.put("note", t.note)
+            o.put("link", t.link)
+            val fa = JSONArray()
+            for (f in t.files) fa.put(f)
+            o.put("files", fa)
             arr.put(o)
         }
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().putString(KEY, arr.toString()).apply()
+        prefs(context).edit().putString(KEY, arr.toString()).apply()
     }
 
     fun get(context: Context, id: Int): Task? = all(context).firstOrNull { it.id == id }
 
-    fun add(context: Context, title: String, time: Long, repeat: String): Task {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val id = prefs.getInt(KEY_ID, 1)
-        prefs.edit().putInt(KEY_ID, id + 1).apply()
-        val task = Task(id, title, time, false, repeat)
+    fun add(context: Context, task: Task): Task {
+        val p = prefs(context)
+        val id = p.getInt(KEY_ID, 1)
+        p.edit().putInt(KEY_ID, id + 1).apply()
+        val created = task.copy(id = id)
         val list = all(context)
-        list.add(task)
+        list.add(created)
         saveAll(context, list)
-        return task
+        return created
     }
 
     fun update(context: Context, task: Task) {
