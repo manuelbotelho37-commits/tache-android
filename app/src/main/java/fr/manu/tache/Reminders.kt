@@ -15,7 +15,6 @@ import java.util.Calendar
 object Reminders {
     const val CHANNEL_ID = "task_alarm_channel_v2"
 
-    // Codes uniques par tâche : id*10 + n
     fun codeAlarm(id: Int) = id * 10
     fun codeDone(id: Int) = id * 10 + 1
     fun codeSnooze(id: Int) = id * 10 + 2
@@ -60,7 +59,7 @@ object Reminders {
     }
 
     fun schedule(context: Context, task: Task) {
-        if (task.done) return
+        if (task.done || task.paused) return
         if (task.time <= System.currentTimeMillis()) return
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val show = PendingIntent.getActivity(
@@ -69,7 +68,6 @@ object Reminders {
             Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        // setAlarmClock : alarme critique, sort du mode Doze
         am.setAlarmClock(AlarmManager.AlarmClockInfo(task.time, show), alarmIntent(context, task.id))
     }
 
@@ -78,14 +76,21 @@ object Reminders {
         am.cancel(alarmIntent(context, id))
     }
 
+    fun isRepeating(repeat: String) =
+        repeat == "day" || repeat == "week" || repeat == "month" || repeat == "year"
+
     fun nextOccurrence(time: Long, repeat: String): Long {
-        if (repeat != "daily" && repeat != "weekly") return time
+        if (!isRepeating(repeat)) return time
         val cal = Calendar.getInstance()
         cal.timeInMillis = time
         val now = System.currentTimeMillis()
         do {
-            if (repeat == "daily") cal.add(Calendar.DAY_OF_YEAR, 1)
-            else cal.add(Calendar.WEEK_OF_YEAR, 1)
+            when (repeat) {
+                "day" -> cal.add(Calendar.DAY_OF_YEAR, 1)
+                "week" -> cal.add(Calendar.WEEK_OF_YEAR, 1)
+                "month" -> cal.add(Calendar.MONTH, 1)
+                else -> cal.add(Calendar.YEAR, 1)
+            }
         } while (cal.timeInMillis <= now)
         return cal.timeInMillis
     }
@@ -93,9 +98,9 @@ object Reminders {
     fun rescheduleAll(context: Context) {
         createChannel(context)
         for (task in TaskStore.all(context)) {
-            if (task.done) continue
+            if (task.done || task.paused) continue
             var t = task
-            if (t.time <= System.currentTimeMillis() && t.repeat != "none") {
+            if (t.time <= System.currentTimeMillis() && isRepeating(t.repeat)) {
                 t = t.copy(time = nextOccurrence(t.time, t.repeat))
                 TaskStore.update(context, t)
             }
