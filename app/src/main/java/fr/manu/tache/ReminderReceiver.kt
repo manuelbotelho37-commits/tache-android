@@ -1,6 +1,5 @@
 package fr.manu.tache
 
-import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -15,7 +14,7 @@ class ReminderReceiver : BroadcastReceiver() {
         val id = intent.getIntExtra("TASK_ID", -1)
         if (id < 0) return
         val task = TaskStore.get(context, id) ?: return
-        if (task.done) return
+        if (task.done || task.paused) return
 
         val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         val wakeLock = pm.newWakeLock(
@@ -26,6 +25,7 @@ class ReminderReceiver : BroadcastReceiver() {
         try {
             Reminders.createChannel(context)
             show(context, task)
+            Reminders.scheduleAt(context, id, System.currentTimeMillis() + 3_600_000L)
         } finally {
             if (wakeLock.isHeld) wakeLock.release()
         }
@@ -85,9 +85,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 .addAction(0, "Fait", donePending)
                 .addAction(0, "Plus tard", snoozePending)
 
-            val notification = builder.build()
-            notification.flags = notification.flags or Notification.FLAG_INSISTENT
-            nm.notify(id, notification)
+            nm.notify(id, builder.build())
         }
     }
 }
