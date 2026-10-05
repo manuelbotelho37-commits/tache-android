@@ -44,7 +44,224 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Unit)? = null
+    private var cameraUri: Uri? = null
+    private var cameraDone: ((Uri) -> Unit)? = null
+
+    private val galleryLauncher = registerForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            val saved = copyToPictures(uri)
+            if (saved != null) {
+                galleryDone?.invoke(saved)
+            } else {
+                Toast.makeText(this, "Photo impossible à ajouter", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private val cameraLauncher = registerForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { ok ->
+        val u = cameraUri
+        if (ok && u != null) {
+            cameraDone?.invoke(u)
+        } else if (u != null) {
+            try {
+                contentResolver.delete(u, null, null)
+            } catch (e: Exception) { }
+        }
+        cameraUri = null
+    }
+
+    private fun newPictureValues(ext: String, mime: String): android.content.ContentValues {
+        val values = android.content.ContentValues()
+        values.put(
+            android.provider.MediaStore.Images.Media.DISPLAY_NAME,
+            "Tache_" + System.currentTimeMillis() + "." + ext
+        )
+        values.put(android.provider.MediaStore.Images.Media.MIME_TYPE, mime)
+        if (Build.VERSION.SDK_INT >= 29) {
+            values.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Tache")
+        }
+        return values
+    }
+
+    private fun copyToPictures(src: Uri): Uri? {
+        return try {
+            val mime = contentResolver.getType(src) ?: "image/jpeg"
+            val ext = if (mime.contains("png")) "png" else "jpg"
+            val dest = contentResolver.insert(
+                android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                newPictureValues(ext, mime)
+            ) ?: return null
+            contentResolver.openInputStream(src)?.use { input ->
+                contentResolver.openOutputStream(dest)?.use { output ->
+                    input.copyTo(output)
+                }
+            }
+            dest
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun takePhoto(done: (Uri) -> Unit) {
+        try {
+            val uri = contentResolver.insert(
+                android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                newPictureValues("jpg", "image/jpeg")
+            )
+            if (uri == null) {
+                Toast.makeText(this, "Appareil photo indisponible", Toast.LENGTH_LONG).show()
+                return
+            }
+            cameraUri = uri
+            cameraDone = done
+            cameraLauncher.launch(uri)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Appareil photo indisponible", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun showDossier(
+        note: String,
+        link: String,
+        files: List<String>,
+        onSave: (String, String, List<String>) -> Unit
+    ) {
+        val fl = files.toMutableList()
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(18), dp(20), dp(8))
+        }
+        box.addView(TextView(this).apply {
+            text = "Dossier"
+            textSize = 24f
+            setTextColor(Color.WHITE)
+            typeface = serifBold
+        })
+
+        box.addView(small("Note"))
+        val noteField = editField("Écrire une note", note, 4)
+        box.addView(noteField)
+
+        box.addView(small("Lien"))
+        val linkField = editField("https://...", link, 1)
+        box.addView(linkField)
+        box.addView(smallButton("🔗  Ouvrir le lien") {
+            val l = linkField.text.toString().trim()
+            if (l.isNotEmpty()) openLink(l)
+        })
+
+        box.addView(small("Fichiers et photos"))
+        val filesBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        box.addView(filesBox)
+
+        fun drawFiles() {
+            filesBox.removeAllViews()
+            for (f in fl.toList()) {
+                val fileLine = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(4), 0, dp(4))
+                }
+                fileLine.addView(
+                    TextView(this).apply {
+                        text = "📄  " + fileName(f)
+                        textSize = 15f
+                        setTextColor(Color.WHITE)
+                        setOnClickListener { openFile(f) }
+                    },
+                    LinearLayout.LayoutParams(0, WRAP, 1f)
+                )
+                fileLine.addView(
+                    smallButton("✕") {
+                        AlertDialog.Builder(this)
+                            .setMessage("Retirer ce fichier ?")
+                            .setPositiveButton("Oui, retirer") { _, _ ->
+                                fl.remove(f)
+                                drawFiles()
+                            }
+                            .setNegativeButton("Non", null)
+                            .show()
+                    },
+                    LinearLayout.LayoutParams(dp(40), dp(40))
+                )
+                filesBox.addView(fileLine)
+            }
+        }
+        drawFiles()
+
+        fun chip(label: String, onClick: () -> Unit): TextView =
+            TextView(this).apply {
+                text = label
+                textSize = 13f
+                gravity = Gravity.CENTER
+                setTextColor(Color.parseColor("#D8DCE2"))
+                background = rounded(Color.TRANSPARENT, 10, lineColor, 1)
+                setPadding(dp(4), dp(10), dp(4), dp(10))
+                setOnClickListener { onClick() }
+            }
+
+        val chips = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        chips.addView(
+            chip("Galerie") {
+                galleryDone = { uri ->
+                    fl.add(uri.toString())
+                    drawFiles()
+                }
+                galleryLauncher.launch(
+                    androidx.activity.result.PickVisualMediaRequest(
+                        ActivityResultContracts.PickVisualMedia.ImageOnly
+                    )
+                )
+            },
+            LinearLayout.LayoutParams(0, WRAP, 1f)
+        )
+        chips.addView(
+            chip("Photo") {
+                takePhoto { uri ->
+                    fl.add(uri.toString())
+                    drawFiles()
+                }
+            },
+            LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(6) }
+        )
+        chips.addView(
+            chip("Fichier") {
+                pickedFile = { uri ->
+                    fl.add(uri.toString())
+                    drawFiles()
+                }
+                fileLauncher.launch(arrayOf("*/*"))
+            },
+            LinearLayout.LayoutParams(0, WRAP, 1f).apply { leftMargin = dp(6) }
+        )
+        box.addView(
+            chips,
+            LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) }
+        )
+
+        val dialog = AlertDialog.Builder(this)
+            .setView(ScrollView(this).apply { addView(box) })
+            .setPositiveButton("Enregistrer") { _, _ ->
+                onSave(
+                    noteField.text.toString().trim(),
+                    linkField.text.toString().trim(),
+                    fl.toList()
+                )
+            }
+            .setNegativeButton("Annuler", null)
+            .create()
+        dialog.show()
+        dialog.window?.setBackgroundDrawable(rounded(navy2, 18))
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(gold)
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(grayText)
+    }
 
     private lateinit var permBox: LinearLayout
     private lateinit var listBox: LinearLayout
@@ -704,7 +921,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, "Lien impossible à ouvrir", Toast.LENGTH_LONG).show()
         }
-    }private fun showDossier(
+    }private fun showDossierOld(
         note: String,
         link: String,
         files: List<String>,
