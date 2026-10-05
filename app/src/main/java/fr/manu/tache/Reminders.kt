@@ -58,23 +58,27 @@ object Reminders {
         )
     }
 
-    fun schedule(context: Context, task: Task) {
-        if (task.done || task.paused) return
-        if (task.time <= System.currentTimeMillis()) return
+    fun scheduleAt(context: Context, id: Int, timeMs: Long) {
         try {
             val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val show = PendingIntent.getActivity(
                 context,
-                codeContent(task.id),
+                codeContent(id),
                 Intent(context, MainActivity::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             am.setAlarmClock(
-                AlarmManager.AlarmClockInfo(task.time, show),
-                alarmIntent(context, task.id)
+                AlarmManager.AlarmClockInfo(timeMs, show),
+                alarmIntent(context, id)
             )
         } catch (e: Exception) {
         }
+    }
+
+    fun schedule(context: Context, task: Task) {
+        if (task.done || task.paused) return
+        if (task.time <= System.currentTimeMillis()) return
+        scheduleAt(context, task.id, task.time)
     }
 
     fun cancel(context: Context, id: Int) {
