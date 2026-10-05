@@ -18,6 +18,27 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Restore Tache signing key
+        id: signing-cache
+        uses: actions/cache@v4
+        with:
+          path: .signing/tache.keystore
+          key: tache-signing-key-v1
+
+      - name: Create Tache signing key
+        if: steps.signing-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p .signing
+          keytool -genkeypair -v \
+            -keystore .signing/tache.keystore \
+            -storepass Tache2026 \
+            -keypass Tache2026 \
+            -alias tache \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Tache, OU=Mobile, O=Manuel Botelho, L=Tours, ST=Centre-Val de Loire, C=FR"
+
       - name: Install Android platform
         run: |
           SDKMANAGER=/usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager
