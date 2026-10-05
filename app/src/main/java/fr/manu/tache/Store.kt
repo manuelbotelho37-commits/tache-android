@@ -38,7 +38,7 @@ object TaskStore {
     private fun seedIfNeeded(context: Context) {
         val p = prefs(context)
         if (p.getBoolean(KEY_SEEDED, false)) return
-        p.edit().putBoolean(KEY_SEEDED, true).apply()
+        p.edit().putBoolean(KEY_SEEDED, true).commit()
         if ((p.getString(KEY, "[]") ?: "[]") != "[]") return
 
         val base = listOf(
@@ -63,12 +63,16 @@ object TaskStore {
             list.add(t.copy(id = id))
             id++
         }
-        p.edit().putInt(KEY_ID, id).apply()
+        p.edit().putInt(KEY_ID, id).commit()
         saveAll(context, list)
     }
 
     fun all(context: Context): MutableList<Task> {
         seedIfNeeded(context)
+        return readAll(context)
+    }
+
+    private fun readAll(context: Context): MutableList<Task> {
         val raw = prefs(context).getString(KEY, "[]") ?: "[]"
         val list = mutableListOf<Task>()
         val arr = JSONArray(raw)
@@ -123,17 +127,17 @@ object TaskStore {
             o.put("files", fa)
             arr.put(o)
         }
-        prefs(context).edit().putString(KEY, arr.toString()).apply()
+        prefs(context).edit().putString(KEY, arr.toString()).commit()
     }
 
     fun get(context: Context, id: Int): Task? = all(context).firstOrNull { it.id == id }
 
     fun add(context: Context, task: Task): Task {
         val p = prefs(context)
-        val id = p.getInt(KEY_ID, 1)
-        p.edit().putInt(KEY_ID, id + 1).apply()
-        val created = task.copy(id = id)
         val list = all(context)
+        val id = p.getInt(KEY_ID, 1)
+        p.edit().putInt(KEY_ID, id + 1).commit()
+        val created = task.copy(id = id)
         list.add(created)
         saveAll(context, list)
         return created
