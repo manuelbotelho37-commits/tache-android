@@ -15,6 +15,15 @@ android {
         versionName "1.0"
     }
 
+    signingConfigs {
+        debug {
+            storeFile rootProject.file('.signing/tache.keystore')
+            storePassword 'Tache2026'
+            keyAlias 'tache'
+            keyPassword 'Tache2026'
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
