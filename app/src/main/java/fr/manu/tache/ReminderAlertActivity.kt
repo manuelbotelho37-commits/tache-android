@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
@@ -15,6 +16,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 class ReminderAlertActivity : AppCompatActivity() {
 
@@ -28,6 +31,16 @@ class ReminderAlertActivity : AppCompatActivity() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.getIntExtra("TASK_ID", -2) == taskId) finish()
         }
+    }
+
+    private fun dp(x: Int) = (x * resources.displayMetrics.density).toInt()
+
+    private fun rounded(fill: Int, radiusDp: Int, strokeColor: Int = 0, strokeDp: Int = 0): GradientDrawable {
+        val d = GradientDrawable()
+        d.setColor(fill)
+        d.cornerRadius = dp(radiusDp).toFloat()
+        if (strokeDp > 0) d.setStroke(dp(strokeDp), strokeColor)
+        return d
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,52 +64,57 @@ class ReminderAlertActivity : AppCompatActivity() {
             return
         }
 
+        val gold = Color.parseColor("#C4A04F")
+        val navy = Color.parseColor("#14171C")
+        val cardColor = Color.parseColor("#232831")
+
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setBackgroundColor(Color.parseColor("#111111"))
-            setPadding(48, 48, 48, 48)
+            setBackgroundColor(navy)
+            setPadding(dp(24), dp(24), dp(24), dp(24))
         }
 
-        val title = TextView(this).apply {
-            text = task.title.uppercase()
-            textSize = 32f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            typeface = Typeface.DEFAULT_BOLD
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            background = rounded(cardColor, 24)
+            setPadding(dp(24), dp(32), dp(24), dp(24))
         }
-        root.addView(
+
+        val label = TextView(this).apply {
+            text = "RAPPEL · " + SimpleDateFormat("HH:mm", Locale.FRANCE).format(task.time)
+            textSize = 14f
+            setTextColor(gold)
+            typeface = Typeface.DEFAULT_BOLD
+            letterSpacing = 0.1f
+            gravity = Gravity.CENTER
+        }
+        card.addView(label)
+
+        val title = TextView(this).apply {
+            text = task.title
+            textSize = 28f
+            setTextColor(Color.WHITE)
+            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+            gravity = Gravity.CENTER
+        }
+        card.addView(
             title,
             LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 120 }
+            ).apply { topMargin = dp(16); bottomMargin = dp(32) }
         )
 
-        val done = Button(this).apply {
-            text = "Fait"
-            textSize = 26f
-            setBackgroundColor(Color.parseColor("#2E9E4F"))
-            setTextColor(Color.WHITE)
-            setOnClickListener {
-                ReminderActionReceiver.handle(
-                    this@ReminderAlertActivity, taskId, ReminderActionReceiver.ACTION_DONE
-                )
-                finish()
-            }
-        }
-        root.addView(
-            done,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 260
-            ).apply { bottomMargin = 40 }
-        )
+        val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
 
         val later = Button(this).apply {
             text = "Plus tard"
-            textSize = 26f
-            setBackgroundColor(Color.parseColor("#D98A00"))
-            setTextColor(Color.WHITE)
+            isAllCaps = false
+            textSize = 18f
+            setTextColor(gold)
+            background = rounded(Color.TRANSPARENT, 16, gold, 2)
             setOnClickListener {
                 ReminderActionReceiver.handle(
                     this@ReminderAlertActivity, taskId, ReminderActionReceiver.ACTION_SNOOZE
@@ -104,10 +122,41 @@ class ReminderAlertActivity : AppCompatActivity() {
                 finish()
             }
         }
-        root.addView(
+        val done = Button(this).apply {
+            text = "Fait"
+            isAllCaps = false
+            textSize = 18f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(navy)
+            background = rounded(gold, 16)
+            setOnClickListener {
+                ReminderActionReceiver.handle(
+                    this@ReminderAlertActivity, taskId, ReminderActionReceiver.ACTION_DONE
+                )
+                finish()
+            }
+        }
+        buttons.addView(
             later,
+            LinearLayout.LayoutParams(0, dp(64), 1f).apply { rightMargin = dp(8) }
+        )
+        buttons.addView(
+            done,
+            LinearLayout.LayoutParams(0, dp(64), 1f).apply { leftMargin = dp(8) }
+        )
+        card.addView(
+            buttons,
             LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 260
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
+
+        root.addView(
+            card,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
             )
         )
 
