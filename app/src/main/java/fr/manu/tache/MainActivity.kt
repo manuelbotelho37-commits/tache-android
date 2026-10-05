@@ -10,13 +10,16 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -28,15 +31,59 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var permBox: LinearLayout
     private lateinit var listBox: LinearLayout
-    private val fmt = SimpleDateFormat("EEE d MMM yyyy 'à' HH:mm", Locale.FRANCE)
+    private lateinit var tabsBox: LinearLayout
+    private var tab = 1
+
+    private val gold = Color.parseColor("#C4A04F")
+    private val navy = Color.parseColor("#14171C")
+    private val cardColor = Color.parseColor("#232831")
+    private val grayText = Color.parseColor("#9AA0A8")
+    private val lineColor = Color.parseColor("#3A414D")
 
     private fun dp(x: Int) = (x * resources.displayMetrics.density).toInt()
+
+    private fun rounded(fill: Int, radiusDp: Int, strokeColor: Int = 0, strokeDp: Int = 0): GradientDrawable {
+        val d = GradientDrawable()
+        d.setColor(fill)
+        d.cornerRadius = dp(radiusDp).toFloat()
+        if (strokeDp > 0) d.setStroke(dp(strokeDp), strokeColor)
+        return d
+    }
+
+    private fun startOfDay(ms: Long): Long {
+        val c = Calendar.getInstance()
+        c.timeInMillis = ms
+        c.set(Calendar.HOUR_OF_DAY, 0)
+        c.set(Calendar.MINUTE, 0)
+        c.set(Calendar.SECOND, 0)
+        c.set(Calendar.MILLISECOND, 0)
+        return c.timeInMillis
+    }
+
+    private fun dayDiff(ms: Long): Int =
+        Math.round((startOfDay(ms) - startOfDay(System.currentTimeMillis())) / 86400000.0).toInt()
+
+    private fun whenLabel(ms: Long): String {
+        val hour = SimpleDateFormat("HH:mm", Locale.FRANCE).format(ms)
+        return when (dayDiff(ms)) {
+            0 -> "Aujourd'hui · $hour"
+            1 -> "Demain · $hour"
+            else -> SimpleDateFormat("EEE d MMM", Locale.FRANCE).format(ms) + " · " + hour
+        }
+    }
+
+    private fun repeatLabel(r: String) = when (r) {
+        "daily" -> "Chaque jour"
+        "weekly" -> "Chaque semaine"
+        else -> "Une seule fois"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,72 +98,108 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        val root = LinearLayout(this).apply {
+        val frame = FrameLayout(this).apply { setBackgroundColor(navy) }
+
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#111111"))
-            setPadding(dp(16), dp(40), dp(16), dp(16))
+            setPadding(dp(18), dp(44), dp(18), dp(8))
         }
 
-        val title = TextView(this).apply {
-            text = "TÂCHE"
-            textSize = 26f
-            setTextColor(Color.WHITE)
-            typeface = Typeface.DEFAULT_BOLD
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.BOTTOM
         }
-        root.addView(title)
+        val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val dateText = SimpleDateFormat("EEEE d MMMM", Locale.FRANCE).format(Date())
+            .replaceFirstChar { it.uppercase() }
+        left.addView(TextView(this).apply {
+            text = dateText
+            textSize = 13f
+            setTextColor(grayText)
+        })
+        left.addView(TextView(this).apply {
+            text = "Tâche"
+            textSize = 38f
+            setTextColor(Color.WHITE)
+            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+        })
+        header.addView(left, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+
+        val testPill = pill("Test 1 min") {
+            val t = TaskStore.add(
+                this@MainActivity, "Test alarme",
+                System.currentTimeMillis() + 60_000, "none"
+            )
+            Reminders.schedule(this@MainActivity, t)
+            refresh()
+            Toast.makeText(
+                this@MainActivity,
+                "Alarme dans 1 minute : verrouille l'écran", Toast.LENGTH_LONG
+            ).show()
+        }
+        val settingsPill = pill("Réglages") {
+            startSafe(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:$packageName")
+                )
+            )
+        }
+        header.addView(testPill, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { rightMargin = dp(8) })
+        header.addView(settingsPill)
+        content.addView(header)
+
+        tabsBox = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        content.addView(tabsBox, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(16) })
 
         permBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        root.addView(permBox)
+        content.addView(permBox)
 
         val scroll = ScrollView(this)
-        listBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        listBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 0, 0, dp(100))
+        }
         scroll.addView(listBox)
-        root.addView(
-            scroll,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
-            )
-        )
+        content.addView(scroll, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+        ))
 
-        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        frame.addView(content, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+        ))
+
         val add = Button(this).apply {
-            text = "+ Nouvelle tâche"
+            text = "+ Ajouter"
+            isAllCaps = false
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(navy)
+            background = rounded(gold, 28)
+            setPadding(dp(24), dp(14), dp(24), dp(14))
             setOnClickListener { showEditor(null) }
         }
-        val test = Button(this).apply {
-            text = "Test 1 min"
-            setOnClickListener {
-                val t = TaskStore.add(
-                    this@MainActivity, "Test alarme",
-                    System.currentTimeMillis() + 60_000, "none"
-                )
-                Reminders.schedule(this@MainActivity, t)
-                refresh()
-                Toast.makeText(
-                    this@MainActivity,
-                    "Alarme dans 1 minute : verrouille l'écran", Toast.LENGTH_LONG
-                ).show()
-            }
-        }
-        val settings = Button(this).apply {
-            text = "Réglages"
-            setOnClickListener {
-                startSafe(
-                    Intent(
-                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        Uri.parse("package:$packageName")
-                    )
-                )
-            }
-        }
-        val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        bar.addView(add, lp)
-        bar.addView(test, lp)
-        bar.addView(settings, lp)
-        root.addView(bar)
+        frame.addView(add, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT, dp(56),
+            Gravity.BOTTOM or Gravity.END
+        ).apply { rightMargin = dp(18); bottomMargin = dp(24) })
 
-        setContentView(root)
+        setContentView(frame)
     }
+
+    private fun pill(label: String, action: () -> Unit): TextView =
+        TextView(this).apply {
+            text = label
+            textSize = 12f
+            setTextColor(Color.parseColor("#D8DCE2"))
+            background = rounded(Color.TRANSPARENT, 12, lineColor, 1)
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            setOnClickListener { action() }
+        }
 
     override fun onResume() {
         super.onResume()
@@ -171,86 +254,146 @@ class MainActivity : AppCompatActivity() {
     private fun permButton(label: String, action: () -> Unit): Button =
         Button(this).apply {
             text = label
-            setBackgroundColor(Color.parseColor("#B3261E"))
+            isAllCaps = false
+            background = rounded(Color.parseColor("#B3261E"), 12)
             setTextColor(Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
             setOnClickListener { action() }
         }
 
+    private fun tabView(label: String, index: Int): TextView =
+        TextView(this).apply {
+            text = label
+            textSize = 12f
+            gravity = Gravity.CENTER
+            if (tab == index) {
+                setTextColor(navy)
+                typeface = Typeface.DEFAULT_BOLD
+                background = rounded(gold, 12)
+            } else {
+                setTextColor(Color.parseColor("#D8DCE2"))
+                background = rounded(Color.TRANSPARENT, 12, lineColor, 1)
+            }
+            setPadding(dp(2), dp(12), dp(2), dp(12))
+            setOnClickListener {
+                tab = index
+                refresh()
+            }
+        }
+
     private fun refresh() {
+        val all = TaskStore.all(this)
+        val todayList = all.filter { !it.done && dayDiff(it.time) <= 0 }.sortedBy { it.time }
+        val todoList = all.filter { !it.done }.sortedBy { it.time }
+        val doneList = all.filter { it.done }.sortedByDescending { it.time }
+
+        tabsBox.removeAllViews()
+        val tabs = listOf(
+            "Aujourd'hui · ${todayList.size}",
+            "À faire · ${todoList.size}",
+            "Terminées · ${doneList.size}"
+        )
+        for (i in tabs.indices) {
+            tabsBox.addView(
+                tabView(tabs[i], i),
+                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    if (i > 0) leftMargin = dp(6)
+                }
+            )
+        }
+
         listBox.removeAllViews()
-        val tasks = TaskStore.all(this).sortedWith(compareBy({ it.done }, { it.time }))
-        for (t in tasks) listBox.addView(row(t))
+        val shown = when (tab) {
+            0 -> todayList
+            1 -> todoList
+            else -> doneList
+        }
+        if (shown.isEmpty()) {
+            listBox.addView(TextView(this).apply {
+                text = "Rien ici pour l'instant."
+                textSize = 15f
+                setTextColor(grayText)
+                setPadding(dp(4), dp(24), dp(4), 0)
+            })
+        }
+        for (t in shown) listBox.addView(row(t))
     }
 
-    private fun repeatLabel(r: String) = when (r) {
-        "daily" -> "Chaque jour"
-        "weekly" -> "Chaque semaine"
-        else -> "Une seule fois"
+    private fun toggleDone(t: Task) {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (t.done) {
+            val re = t.copy(done = false)
+            TaskStore.update(this, re)
+            Reminders.schedule(this, re)
+        } else {
+            nm.cancel(t.id)
+            Reminders.cancel(this, t.id)
+            TaskStore.update(this, t.copy(done = true))
+        }
+        refresh()
+    }
+
+    private fun confirmDelete(t: Task) {
+        AlertDialog.Builder(this)
+            .setMessage("Supprimer cette tâche ?")
+            .setPositiveButton("Oui, supprimer") { _, _ ->
+                val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                nm.cancel(t.id)
+                Reminders.cancel(this, t.id)
+                TaskStore.delete(this, t.id)
+                refresh()
+            }
+            .setNegativeButton("Non", null)
+            .show()
     }
 
     private fun row(t: Task): LinearLayout {
         val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#222222"))
-            setPadding(dp(14), dp(12), dp(14), dp(12))
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = rounded(cardColor, 14)
+            setPadding(dp(14), dp(14), dp(10), dp(14))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = dp(10) }
             setOnClickListener { showEditor(t) }
         }
-        val name = TextView(this).apply {
-            text = t.title.uppercase()
-            textSize = 18f
-            setTextColor(if (t.done) Color.GRAY else Color.WHITE)
-            typeface = Typeface.DEFAULT_BOLD
+
+        val circle = View(this).apply {
+            background = if (t.done) rounded(gold, 15, gold, 2)
+            else rounded(Color.TRANSPARENT, 15, Color.parseColor("#5A6270"), 2)
+            layoutParams = LinearLayout.LayoutParams(dp(30), dp(30)).apply { rightMargin = dp(12) }
+            setOnClickListener { toggleDone(t) }
         }
-        val info = TextView(this).apply {
-            text = fmt.format(t.time) + " · " + repeatLabel(t.repeat)
-            textSize = 14f
-            setTextColor(Color.LTGRAY)
-        }
-        val buttons = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.END
-        }
-        val doneBtn = Button(this).apply {
-            text = if (t.done) "Rouvrir" else "Fait"
-            setOnClickListener {
-                val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                if (t.done) {
-                    val re = t.copy(done = false)
-                    TaskStore.update(this@MainActivity, re)
-                    Reminders.schedule(this@MainActivity, re)
-                } else {
-                    nm.cancel(t.id)
-                    Reminders.cancel(this@MainActivity, t.id)
-                    TaskStore.update(this@MainActivity, t.copy(done = true))
-                }
-                refresh()
-            }
-        }
-        val delBtn = Button(this).apply {
+
+        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        texts.addView(TextView(this).apply {
+            text = t.title
+            textSize = 16f
+            setTextColor(if (t.done) grayText else Color.WHITE)
+        })
+        var sub = whenLabel(t.time)
+        if (t.repeat != "none") sub += " · " + repeatLabel(t.repeat)
+        texts.addView(TextView(this).apply {
+            text = sub
+            textSize = 12f
+            setTextColor(grayText)
+        })
+
+        val del = TextView(this).apply {
             text = "Supprimer"
-            setOnClickListener {
-                AlertDialog.Builder(this@MainActivity)
-                    .setMessage("Supprimer cette tâche ?")
-                    .setPositiveButton("Oui, supprimer") { _, _ ->
-                        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                        nm.cancel(t.id)
-                        Reminders.cancel(this@MainActivity, t.id)
-                        TaskStore.delete(this@MainActivity, t.id)
-                        refresh()
-                    }
-                    .setNegativeButton("Non", null)
-                    .show()
-            }
+            textSize = 12f
+            setTextColor(grayText)
+            setPadding(dp(10), dp(10), dp(6), dp(10))
+            setOnClickListener { confirmDelete(t) }
         }
-        buttons.addView(doneBtn)
-        buttons.addView(delBtn)
-        box.addView(name)
-        box.addView(info)
-        box.addView(buttons)
+
+        box.addView(circle)
+        box.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        box.addView(del)
         return box
     }
 
