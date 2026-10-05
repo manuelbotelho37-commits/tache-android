@@ -61,19 +61,28 @@ object Reminders {
     fun schedule(context: Context, task: Task) {
         if (task.done || task.paused) return
         if (task.time <= System.currentTimeMillis()) return
-        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val show = PendingIntent.getActivity(
-            context,
-            codeContent(task.id),
-            Intent(context, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        am.setAlarmClock(AlarmManager.AlarmClockInfo(task.time, show), alarmIntent(context, task.id))
+        try {
+            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val show = PendingIntent.getActivity(
+                context,
+                codeContent(task.id),
+                Intent(context, MainActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            am.setAlarmClock(
+                AlarmManager.AlarmClockInfo(task.time, show),
+                alarmIntent(context, task.id)
+            )
+        } catch (e: Exception) {
+        }
     }
 
     fun cancel(context: Context, id: Int) {
-        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        am.cancel(alarmIntent(context, id))
+        try {
+            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            am.cancel(alarmIntent(context, id))
+        } catch (e: Exception) {
+        }
     }
 
     fun isRepeating(repeat: String) =
@@ -96,15 +105,21 @@ object Reminders {
     }
 
     fun rescheduleAll(context: Context) {
-        createChannel(context)
+        try {
+            createChannel(context)
+        } catch (e: Exception) {
+        }
         for (task in TaskStore.all(context)) {
-            if (task.done || task.paused) continue
-            var t = task
-            if (t.time <= System.currentTimeMillis() && isRepeating(t.repeat)) {
-                t = t.copy(time = nextOccurrence(t.time, t.repeat))
-                TaskStore.update(context, t)
+            try {
+                if (task.done || task.paused) continue
+                var t = task
+                if (t.time <= System.currentTimeMillis() && isRepeating(t.repeat)) {
+                    t = t.copy(time = nextOccurrence(t.time, t.repeat))
+                    TaskStore.update(context, t)
+                }
+                schedule(context, t)
+            } catch (e: Exception) {
             }
-            schedule(context, t)
         }
     }
 }
