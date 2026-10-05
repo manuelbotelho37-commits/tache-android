@@ -9,12 +9,16 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Paint
 import android.graphics.Typeface
-import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.speech.RecognizerIntent
@@ -49,6 +53,26 @@ class MainActivity : AppCompatActivity() {
 
     private var speechTarget: EditText? = null
     private var pickedFile: ((Uri) -> Unit)? = null
+
+    private val unlocked = mutableMapOf<Int, Long>()
+    private val handler = Handler(Looper.getMainLooper())
+
+    private fun isOpen(id: Int): Boolean = (unlocked[id] ?: 0L) > System.currentTimeMillis()
+
+    private fun openLock(id: Int) {
+        unlocked[id] = System.currentTimeMillis() + 60_000L
+        handler.postDelayed({ refresh() }, 61_000L)
+    }
+
+    private fun closeLock(id: Int) {
+        unlocked.remove(id)
+    }
+
+    private fun needUnlock(t: Task): Boolean {
+        if (isOpen(t.id)) return false
+        Toast.makeText(this, "Cadenas fermé", Toast.LENGTH_SHORT).show()
+        return true
+    }
 
     private val speechLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -85,6 +109,9 @@ class MainActivity : AppCompatActivity() {
     private val lineColor = Color.parseColor("#3A414D")
     private val red = Color.parseColor("#D9534F")
     private val orange = Color.parseColor("#D98A00")
+    private val green = Color.parseColor("#4CAF50")
+    private val blue = Color.parseColor("#4285F4")
+    private val lockGreen = Color.parseColor("#3BA55D")
     private val serifBold = Typeface.create(Typeface.SERIF, Typeface.BOLD)
 
     private fun dp(x: Int) = (x * resources.displayMetrics.density).toInt()
@@ -218,6 +245,11 @@ class MainActivity : AppCompatActivity() {
         refreshPermissions()
         Reminders.rescheduleAll(this)
         refresh()
+    }
+
+    override fun onPause() {
+        unlocked.clear()
+        super.onPause()
     }
 
     private fun showMenu() {
@@ -355,9 +387,7 @@ class MainActivity : AppCompatActivity() {
             })
         }
         for (t in shown) listBox.addView(row(t))
-    }
-
-    private fun toggleDone(t: Task) {
+    }private fun toggleDone(t: Task) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.cancel(t.id)
         Reminders.cancel(this, t.id)
@@ -372,6 +402,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             TaskStore.update(this, t.copy(done = true))
         }
+        closeLock(t.id)
         refresh()
     }
 
@@ -386,6 +417,7 @@ class MainActivity : AppCompatActivity() {
             Reminders.cancel(this, t.id)
             TaskStore.update(this, t.copy(paused = true))
         }
+        closeLock(t.id)
         refresh()
     }
 
@@ -402,6 +434,7 @@ class MainActivity : AppCompatActivity() {
         nm.cancel(t.id)
         Reminders.cancel(this, t.id)
         TaskStore.delete(this, t.id)
+        closeLock(t.id)
         refresh()
     }
 
@@ -491,24 +524,37 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun row(t: Task): View {
-        val outer = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            background = rounded(cardColor, 14)
-            layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) }
-            setOnClickListener { showEditor(t) }
-        }
-
         val barColor = when (t.priority) {
             2 -> red
-            1 -> orange
-            else -> Color.TRANSPARENT
+            1 -> blue
+            else -> green
         }
-        val bar = View(this).apply { background = rounded(barColor, 3) }
-        outer.addView(
-            bar,
-            LinearLayout.LayoutParams(dp(5), dp(44)).apply { leftMargin = dp(8) }
-        )
+
+        val outer = FrameLayout(this).apply {
+            background = rounded(cardColor, 14)
+            clipToOutline = true
+            layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) }
+            setOnClickListener { if (!needUnlock(t)) showEditor(t) }
+        }
+
+        val fade = View(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(
+                    Color.argb(150, Color.red(barColor), Color.green(barColor), Color.blue(barColor)),
+                    Color.TRANSPARENT
+                )
+            )
+        }
+        outer.addView(fade, FrameLayout.LayoutParams(dp(150), MATCH))
+
+        val bar = View(this).apply { setBackgroundColor(barColor) }
+        outer.addView(bar, FrameLayout.LayoutParams(dp(4), MATCH))
+
+        val line = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
 
         val check = TextView(this).apply {
             text = if (t.done) "✓" else ""
@@ -517,12 +563,12 @@ class MainActivity : AppCompatActivity() {
             setTextColor(navy)
             background = if (t.done) rounded(gold, 15, gold, 2)
             else rounded(Color.TRANSPARENT, 15, gold, 2)
-            setOnClickListener { toggleDone(t) }
+            setOnClickListener { if (!needUnlock(t)) toggleDone(t) }
         }
-        outer.addView(
+        line.addView(
             check,
             LinearLayout.LayoutParams(dp(30), dp(30)).apply {
-                leftMargin = dp(10)
+                leftMargin = dp(16)
                 rightMargin = dp(12)
             }
         )
@@ -535,36 +581,82 @@ class MainActivity : AppCompatActivity() {
             text = t.title
             textSize = 16f
             setTextColor(if (t.done || t.paused) grayText else Color.WHITE)
-            if (t.done) paintFlags = paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG
+            if (t.done) paintFlags = paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
         })
         val parts = mutableListOf<String>()
         if (t.type == "appointment") parts.add("Rendez-vous")
         parts.add(whenLabel(t.time))
         if (repeatLabel(t.repeat).isNotEmpty()) parts.add(repeatLabel(t.repeat))
+        if (t.priority == 1) parts.add("Important")
+        if (t.priority == 2) parts.add("Urgent")
         if (t.paused) parts.add("En pause")
         mid.addView(TextView(this).apply {
             text = parts.joinToString(" · ")
             textSize = 12f
             setTextColor(grayText)
         })
-        outer.addView(mid, LinearLayout.LayoutParams(0, WRAP, 1f))
+        line.addView(mid, LinearLayout.LayoutParams(0, WRAP, 1f))
 
-        val pause = smallButton(if (t.paused) "▶" else "⏸") { togglePause(t) }
-        outer.addView(pause, LinearLayout.LayoutParams(dp(40), dp(40)))
+        val pause = TextView(this).apply {
+            text = if (t.paused) "▶" else "‖"
+            textSize = 16f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(Color.parseColor("#D8DCE2"))
+            background = rounded(Color.TRANSPARENT, 8, lineColor, 1)
+            setOnClickListener { if (!needUnlock(t)) togglePause(t) }
+        }
+        line.addView(
+            pause,
+            LinearLayout.LayoutParams(dp(34), dp(34)).apply { leftMargin = dp(6) }
+        )
 
-        val clip = smallButton("📎") {
-            showDossier(t.note, t.link, t.files) { n, l, f ->
-                TaskStore.update(this, t.copy(note = n, link = l, files = f))
+        val hasDossier = t.note.isNotEmpty() || t.link.isNotEmpty() || t.files.isNotEmpty()
+        val clip = TextView(this).apply {
+            text = "📎"
+            textSize = 15f
+            gravity = Gravity.CENTER
+            background = rounded(Color.TRANSPARENT, 8, if (hasDossier) gold else lineColor, 1)
+            if (!hasDossier) {
+                val m = ColorMatrix()
+                m.setSaturation(0f)
+                paint.colorFilter = ColorMatrixColorFilter(m)
+            }
+            setOnClickListener {
+                if (!needUnlock(t)) {
+                    showDossier(t.note, t.link, t.files) { n, l, f ->
+                        TaskStore.update(this@MainActivity, t.copy(note = n, link = l, files = f))
+                        closeLock(t.id)
+                        refresh()
+                    }
+                }
+            }
+        }
+        line.addView(
+            clip,
+            LinearLayout.LayoutParams(dp(34), dp(34)).apply { leftMargin = dp(6) }
+        )
+
+        val open = isOpen(t.id)
+        val lock = TextView(this).apply {
+            text = if (open) "🔓" else "🔒"
+            textSize = 15f
+            gravity = Gravity.CENTER
+            background = rounded(if (open) lockGreen else red, 8)
+            setOnClickListener {
+                if (isOpen(t.id)) closeLock(t.id) else openLock(t.id)
                 refresh()
             }
         }
-        if (t.note.isNotEmpty() || t.link.isNotEmpty() || t.files.isNotEmpty()) {
-            clip.setTextColor(gold)
-        }
-        outer.addView(
-            clip,
-            LinearLayout.LayoutParams(dp(40), dp(40)).apply { rightMargin = dp(6) }
+        line.addView(
+            lock,
+            LinearLayout.LayoutParams(dp(34), dp(34)).apply {
+                leftMargin = dp(6)
+                rightMargin = dp(10)
+            }
         )
+
+        outer.addView(line, FrameLayout.LayoutParams(MATCH, WRAP))
         return outer
     }
 
@@ -612,8 +704,7 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, "Lien impossible à ouvrir", Toast.LENGTH_LONG).show()
         }
-    }
-private fun showDossier(
+    }private fun showDossier(
         note: String,
         link: String,
         files: List<String>,
@@ -650,12 +741,12 @@ private fun showDossier(
         fun drawFiles() {
             filesBox.removeAllViews()
             for (f in fl.toList()) {
-                val line = LinearLayout(this).apply {
+                val fileLine = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
                     setPadding(0, dp(4), 0, dp(4))
                 }
-                line.addView(
+                fileLine.addView(
                     TextView(this).apply {
                         text = "📄  " + fileName(f)
                         textSize = 15f
@@ -664,7 +755,7 @@ private fun showDossier(
                     },
                     LinearLayout.LayoutParams(0, WRAP, 1f)
                 )
-                line.addView(
+                fileLine.addView(
                     smallButton("✕") {
                         AlertDialog.Builder(this)
                             .setMessage("Retirer ce fichier ?")
@@ -677,7 +768,7 @@ private fun showDossier(
                     },
                     LinearLayout.LayoutParams(dp(40), dp(40))
                 )
-                filesBox.addView(line)
+                filesBox.addView(fileLine)
             }
         }
         drawFiles()
@@ -705,9 +796,7 @@ private fun showDossier(
         dialog.window?.setBackgroundDrawable(rounded(navy2, 18))
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(gold)
         dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(grayText)
-    }
-
-    private fun showEditor(existing: Task?) {
+    }private fun showEditor(existing: Task?) {
         var type = existing?.type ?: "task"
         val repeatKeys = listOf("none", "day", "week", "month", "year")
         var repeat = existing?.repeat ?: "none"
@@ -857,6 +946,11 @@ private fun showDossier(
         dialog.show()
         dialog.window?.setBackgroundDrawable(rounded(navy2, 18))
 
+        dialog.setOnDismissListener {
+            if (existing != null) closeLock(existing.id)
+            refresh()
+        }
+
         val pos = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
         pos.setTextColor(gold)
         pos.setOnClickListener {
@@ -887,7 +981,6 @@ private fun showDossier(
                 if (!task.done) Reminders.schedule(this, task)
             }
             dialog.dismiss()
-            refresh()
         }
 
         dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(grayText)
