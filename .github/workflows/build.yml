@@ -69,3 +69,5 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk Tache.apk
           gh release view derniere-version >/dev/null 2>&1 || gh release create derniere-version --title "Tâche - dernière version" --notes "Télécharge Tache.apk pour installer la dernière version de l'appli."
           gh release upload derniere-version Tache.apk --clobber
+          echo "$GITHUB_RUN_NUMBER" > version.txt
+          gh release upload derniere-version version.txt --clobber

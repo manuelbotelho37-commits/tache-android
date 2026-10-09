@@ -482,6 +482,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
 
     override fun onResume() {
         super.onResume()
+        checkUpdate()
         refreshPermissions()
         Reminders.rescheduleAll(this)
         refresh()
@@ -580,6 +581,98 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             .show()
     }
 
+    /* ---------- Mise à jour intégrée ---------- */
+    private var updateReady = false
+    private var updateBusy = false
+    private var lastUpdateCheck = 0L
+
+    private fun checkUpdate() {
+        val now = System.currentTimeMillis()
+        if (updateBusy || now - lastUpdateCheck < 10 * 60_000L) return
+        lastUpdateCheck = now
+        val mine = Updater.installedVersion(this)
+        Thread {
+            val latest = Updater.latestVersion()
+            runOnUiThread {
+                if (latest != null && latest > mine && !updateReady) {
+                    updateReady = true
+                    refreshPermissions()
+                }
+            }
+        }.start()
+    }
+
+    private fun startUpdate() {
+        if (updateBusy) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+            AlertDialog.Builder(this)
+                .setTitle("Une autorisation, une seule fois")
+                .setMessage("Pour se mettre à jour toute seule, Tâche a besoin d'installer ses nouvelles versions. Sur l'écran suivant, active « Autoriser », puis reviens et appuie à nouveau sur « Mettre à jour ».")
+                .setPositiveButton("Continuer") { _, _ ->
+                    startSafe(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+                }
+                .setNegativeButton("Plus tard", null)
+                .show()
+            return
+        }
+        updateBusy = true
+        Toast.makeText(this, "Téléchargement de la nouvelle version…", Toast.LENGTH_LONG).show()
+        Thread {
+            val f = Updater.download(this)
+            runOnUiThread {
+                updateBusy = false
+                if (f == null) {
+                    Toast.makeText(this, "Téléchargement impossible, vérifie Internet", Toast.LENGTH_LONG).show()
+                    return@runOnUiThread
+                }
+                try {
+                    val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.fileprovider", f)
+                    startActivity(
+                        Intent(Intent.ACTION_VIEW)
+                            .setDataAndType(uri, "application/vnd.android.package-archive")
+                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Installation impossible", Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun updateBanner(): View {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = rounded(Color.parseColor("#1D1A14"), 14, gold, 1)
+            setPadding(dp(14), dp(12), dp(10), dp(12))
+            layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) }
+        }
+        val txt = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        txt.addView(TextView(this).apply {
+            text = "Nouvelle version disponible"
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor("#F3D98F"))
+        })
+        txt.addView(TextView(this).apply {
+            text = "Tes tâches sont gardées."
+            textSize = 12f
+            setTextColor(Color.parseColor("#CDBF9C"))
+        })
+        box.addView(txt, LinearLayout.LayoutParams(0, WRAP, 1f))
+        box.addView(TextView(this).apply {
+            text = "Mettre à jour"
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(navy)
+            background = rounded(gold, 10)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setOnClickListener { startUpdate() }
+        }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(10) })
+        return box
+    }
+
     private fun backupBanner(): View {
         val last = TaskStore.lastBackup(this)
         val days = if (last == 0L) -1L else (System.currentTimeMillis() - last) / 86_400_000L
@@ -659,6 +752,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             }
         }
         if (TaskStore.backupDue(this)) permBox.addView(backupBanner())
+        if (updateReady) permBox.addView(updateBanner())
     }
 
     private fun permButton(label: String, action: () -> Unit): Button =
