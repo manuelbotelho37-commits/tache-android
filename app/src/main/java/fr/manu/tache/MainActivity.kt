@@ -426,12 +426,27 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             textSize = 13f
             setTextColor(grayText)
         })
-        left.addView(TextView(this).apply {
+        val titleRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        titleRow.addView(TextView(this).apply {
             text = "Tâche"
             textSize = 38f
             setTextColor(Color.WHITE)
             typeface = serifBold
         })
+        titleRow.addView(TextView(this).apply {
+            text = "+ Ajouter"
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(navy)
+            background = rounded(gold, 18)
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+            setOnClickListener { showEditor(null) }
+        }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(14) })
+        left.addView(titleRow)
         header.addView(left, LinearLayout.LayoutParams(0, WRAP, 1f))
 
         val gear = TextView(this).apply {
@@ -454,28 +469,12 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         val scroll = ScrollView(this)
         listBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, 0, dp(100))
+            setPadding(0, 0, 0, dp(24))
         }
         scroll.addView(listBox)
         content.addView(scroll, LinearLayout.LayoutParams(MATCH, 0, 1f))
 
         frame.addView(content, FrameLayout.LayoutParams(MATCH, MATCH))
-
-        val add = Button(this).apply {
-            text = "+ Ajouter"
-            isAllCaps = false
-            textSize = 16f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(navy)
-            background = rounded(gold, 28)
-            setPadding(dp(24), dp(14), dp(24), dp(14))
-            setOnClickListener { showEditor(null) }
-        }
-        frame.addView(
-            add,
-            FrameLayout.LayoutParams(WRAP, dp(56), Gravity.BOTTOM or Gravity.END)
-                .apply { rightMargin = dp(18); bottomMargin = dp(24) }
-        )
 
         setContentView(frame)
     }
