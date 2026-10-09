@@ -5,6 +5,9 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -58,3 +61,11 @@ jobs:
         with:
           name: Tache-Android-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publier l'APK (lien de téléchargement fixe)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk Tache.apk
+          gh release view derniere-version >/dev/null 2>&1 || gh release create derniere-version --title "Tâche - dernière version" --notes "Télécharge Tache.apk pour installer la dernière version de l'appli."
+          gh release upload derniere-version Tache.apk --clobber
