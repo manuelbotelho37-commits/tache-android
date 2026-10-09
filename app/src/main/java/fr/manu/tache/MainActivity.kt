@@ -1006,7 +1006,6 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         if (t.type == "appointment") parts.add("Rendez-vous")
         parts.add(whenLabel(t.time))
         if (repeatLabel(t.repeat).isNotEmpty()) parts.add(repeatLabel(t.repeat))
-        if (t.priority == 1) parts.add("Important")
         if (t.priority == 2) parts.add("Urgent")
         if (t.paused) parts.add("En pause")
         mid.addView(TextView(this).apply {
@@ -1334,12 +1333,30 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             ) { repeat = repeatKeys[it] }
         )
 
-        box.addView(small("Priorité"))
-        box.addView(
-            segment(listOf("Normal", "Important", "Urgent"), priority, 12, 13f) {
-                priority = it
+        val urgentBtn = TextView(this).apply {
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setPadding(dp(18), dp(10), dp(18), dp(10))
+        }
+        fun paintUrgent() {
+            if (priority == 2) {
+                urgentBtn.text = "✓ Urgent"
+                urgentBtn.setTextColor(navy)
+                urgentBtn.typeface = Typeface.DEFAULT_BOLD
+                urgentBtn.background = rounded(gold, 12)
+            } else {
+                urgentBtn.text = "Urgent"
+                urgentBtn.setTextColor(Color.parseColor("#D8DCE2"))
+                urgentBtn.typeface = Typeface.DEFAULT
+                urgentBtn.background = rounded(Color.TRANSPARENT, 12, lineColor, 1)
             }
-        )
+        }
+        paintUrgent()
+        urgentBtn.setOnClickListener {
+            priority = if (priority == 2) 0 else 2
+            paintUrgent()
+        }
+        box.addView(urgentBtn, LinearLayout.LayoutParams(WRAP, WRAP).apply { topMargin = dp(14) })
 
         box.addView(small("Dossier"))
         val dossierBtn = TextView(this).apply {
