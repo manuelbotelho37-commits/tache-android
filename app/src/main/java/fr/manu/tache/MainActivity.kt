@@ -961,7 +961,6 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
     }
 
     private fun row(t: Task): View {
-        val barColor = if (t.priority == 2) red else green
 
         val outer = FrameLayout(this).apply {
             background = rounded(cardColor, 14)
@@ -970,8 +969,6 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             setOnClickListener { if (!needUnlock(t)) showEditor(t) }
         }
 
-        val bar = View(this).apply { setBackgroundColor(barColor) }
-        outer.addView(bar, FrameLayout.LayoutParams(dp(6), MATCH))
 
         val line = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -980,18 +977,18 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
 
         val check = TextView(this).apply {
             text = if (t.done) "✓" else ""
-            textSize = 16f
+            textSize = 11f
             gravity = Gravity.CENTER
             setTextColor(navy)
-            background = if (t.done) rounded(gold, 15, gold, 2)
-            else rounded(Color.TRANSPARENT, 15, gold, 2)
+            background = if (t.done) rounded(gold, 10, gold, 1)
+            else rounded(Color.TRANSPARENT, 10, gold, 1)
             setOnClickListener { if (!needUnlock(t)) toggleDone(t) }
         }
         line.addView(
             check,
-            LinearLayout.LayoutParams(dp(30), dp(30)).apply {
+            LinearLayout.LayoutParams(dp(20), dp(20)).apply {
                 leftMargin = dp(16)
-                rightMargin = dp(12)
+                rightMargin = dp(14)
             }
         )
 
@@ -1013,7 +1010,14 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         if (t.priority == 2) parts.add("Urgent")
         if (t.paused) parts.add("En pause")
         mid.addView(TextView(this).apply {
-            text = parts.joinToString(" · ")
+            val line = parts.joinToString(" · ")
+            val sp = android.text.SpannableString(line)
+            val u = line.indexOf("Urgent")
+            if (t.priority == 2 && u >= 0) {
+                sp.setSpan(android.text.style.ForegroundColorSpan(gold), u, u + 6, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sp.setSpan(android.text.style.StyleSpan(Typeface.BOLD), u, u + 6, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            text = sp
             textSize = 12f
             setTextColor(grayText)
         })
