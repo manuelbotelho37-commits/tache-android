@@ -266,7 +266,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
     private lateinit var permBox: LinearLayout
     private lateinit var listBox: LinearLayout
     private lateinit var tabsBox: LinearLayout
-    private var tab = 1
+    private var tab = 2
 
     private var speechTarget: EditText? = null
     private var pickedFile: ((Uri) -> Unit)? = null
@@ -684,7 +684,8 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
                 setTextColor(Color.parseColor("#D8DCE2"))
                 background = rounded(Color.TRANSPARENT, 12, lineColor, 1)
             }
-            setPadding(dp(2), dp(12), dp(2), dp(12))
+            maxLines = 2
+            setPadding(dp(2), dp(8), dp(2), dp(8))
             setOnClickListener {
                 tab = index
                 refresh()
@@ -694,14 +695,16 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
     private fun refresh() {
         val all = TaskStore.all(this)
         val todayList = all.filter { !it.done && dayDiff(it.time) <= 0 }.sortedBy { it.time }
+        val tomorrowList = all.filter { !it.done && dayDiff(it.time) == 1 }.sortedBy { it.time }
         val todoList = all.filter { !it.done }.sortedBy { it.time }
         val doneList = all.filter { it.done }.sortedByDescending { it.time }
 
         tabsBox.removeAllViews()
         val tabs = listOf(
-            "Aujourd'hui · ${todayList.size}",
-            "À faire · ${todoList.size}",
-            "Terminées · ${doneList.size}"
+            "Aujourd'hui\n${todayList.size}",
+            "Demain\n${tomorrowList.size}",
+            "À faire\n${todoList.size}",
+            "Terminées\n${doneList.size}"
         )
         for (i in tabs.indices) {
             tabsBox.addView(
@@ -715,7 +718,8 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         listBox.removeAllViews()
         val shown = when (tab) {
             0 -> todayList
-            1 -> todoList
+            1 -> tomorrowList
+            2 -> todoList
             else -> doneList
         }
         if (shown.isEmpty()) {
