@@ -873,19 +873,8 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             setOnClickListener { if (!needUnlock(t)) showEditor(t) }
         }
 
-        val fade = View(this).apply {
-            background = GradientDrawable(
-                GradientDrawable.Orientation.LEFT_RIGHT,
-                intArrayOf(
-                    Color.argb(55, Color.red(barColor), Color.green(barColor), Color.blue(barColor)),
-                    Color.TRANSPARENT
-                )
-            )
-        }
-        outer.addView(fade, FrameLayout.LayoutParams(dp(60), MATCH))
-
         val bar = View(this).apply { setBackgroundColor(barColor) }
-        outer.addView(bar, FrameLayout.LayoutParams(dp(4), MATCH))
+        outer.addView(bar, FrameLayout.LayoutParams(dp(6), MATCH))
 
         val line = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
