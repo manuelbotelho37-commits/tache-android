@@ -1293,6 +1293,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
                 { _, y, m, d ->
                     cal.set(y, m, d)
                     paintDate()
+                    timeBtn.performClick()
                 },
                 cal.get(Calendar.YEAR),
                 cal.get(Calendar.MONTH),
