@@ -314,6 +314,29 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         }
     }
 
+    private val backupLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            try {
+                contentResolver.openOutputStream(uri, "wt")?.use { out ->
+                    out.write(TaskStore.exportJson(this).toByteArray(Charsets.UTF_8))
+                } ?: throw Exception("flux")
+                TaskStore.markBackup(this)
+                refreshPermissions()
+                Toast.makeText(this, "Sauvegarde enregistrée ✓", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Sauvegarde impossible", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private val restoreLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) confirmRestore(uri)
+    }
+
     private val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
     private val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
 
@@ -471,8 +494,16 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
 
     private fun showMenu() {
         AlertDialog.Builder(this)
-            .setItems(arrayOf("Test d'alarme dans 1 minute", "Réglages de l'application")) { _, which ->
+            .setItems(arrayOf("Sauvegarder mes tâches", "Restaurer une sauvegarde", "Test d'alarme dans 1 minute", "Réglages de l'application")) { _, which ->
                 if (which == 0) {
+                    startBackup()
+                } else if (which == 1) {
+                    try {
+                        restoreLauncher.launch(arrayOf("application/json", "application/octet-stream", "text/plain", "*/*"))
+                    } catch (e: Exception) {
+                        Toast.makeText(this, "Impossible d'ouvrir les fichiers", Toast.LENGTH_LONG).show()
+                    }
+                } else if (which == 2) {
                     val t = TaskStore.add(
                         this,
                         Task(0, "Test alarme", System.currentTimeMillis() + 60_000)
@@ -493,6 +524,97 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
                 }
             }
             .show()
+    }
+
+    private fun startBackup() {
+        val day = SimpleDateFormat("yyyy-MM-dd", Locale.FRANCE).format(Date())
+        try {
+            backupLauncher.launch("tache-sauvegarde-$day.json")
+        } catch (e: Exception) {
+            Toast.makeText(this, "Impossible d'ouvrir les fichiers", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun confirmRestore(uri: Uri) {
+        val raw = try {
+            contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+        } catch (e: Exception) {
+            null
+        }
+        if (raw == null) {
+            Toast.makeText(this, "Fichier illisible", Toast.LENGTH_LONG).show()
+            return
+        }
+        val count = try {
+            val o = org.json.JSONObject(raw)
+            if (o.optString("app") == "tache") o.getJSONArray("tasks").length() else -1
+        } catch (e: Exception) {
+            -1
+        }
+        if (count < 0) {
+            AlertDialog.Builder(this)
+                .setTitle("Fichier non reconnu")
+                .setMessage("Choisis un fichier « tache-sauvegarde-….json » créé par l'appli.")
+                .setPositiveButton("D'accord", null)
+                .show()
+            return
+        }
+        val now = TaskStore.all(this).size
+        AlertDialog.Builder(this)
+            .setTitle("Restaurer cette sauvegarde ?")
+            .setMessage("Le fichier contient $count tâche(s). Il remplace les $now tâche(s) actuelles.")
+            .setNegativeButton("Annuler", null)
+            .setPositiveButton("Restaurer") { _, _ ->
+                for (t in TaskStore.all(this)) Reminders.cancel(this, t.id)
+                val n = TaskStore.importJson(this, raw)
+                if (n < 0) {
+                    Toast.makeText(this, "Fichier non reconnu", Toast.LENGTH_LONG).show()
+                } else {
+                    TaskStore.markBackup(this)
+                    Reminders.rescheduleAll(this)
+                    refreshPermissions()
+                    refresh()
+                    Toast.makeText(this, "$n tâche(s) restaurée(s) ✓", Toast.LENGTH_LONG).show()
+                }
+            }
+            .show()
+    }
+
+    private fun backupBanner(): View {
+        val last = TaskStore.lastBackup(this)
+        val days = if (last == 0L) -1L else (System.currentTimeMillis() - last) / 86_400_000L
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = rounded(Color.parseColor("#1D1A14"), 14, gold, 1)
+            setPadding(dp(14), dp(12), dp(10), dp(12))
+            layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) }
+        }
+        val txt = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        txt.addView(TextView(this).apply {
+            text = "Pense à sauvegarder tes tâches"
+            textSize = 15f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.parseColor("#F3D98F"))
+        })
+        txt.addView(TextView(this).apply {
+            text = (if (days < 0) "Tu n'as encore jamais sauvegardé." else "Ta dernière sauvegarde date de $days jours.") +
+                " Une sauvegarde tous les 2 mois, c'est plus sûr."
+            textSize = 12f
+            setTextColor(Color.parseColor("#CDBF9C"))
+        })
+        box.addView(txt, LinearLayout.LayoutParams(0, WRAP, 1f))
+        box.addView(TextView(this).apply {
+            text = "Sauvegarder"
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            setTextColor(navy)
+            background = rounded(gold, 10)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            setOnClickListener { startBackup() }
+        }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(10) })
+        return box
     }
 
     private fun startSafe(intent: Intent) {
@@ -536,6 +658,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
                 })
             }
         }
+        if (TaskStore.backupDue(this)) permBox.addView(backupBanner())
     }
 
     private fun permButton(label: String, action: () -> Unit): Button =
@@ -741,11 +864,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
     }
 
     private fun row(t: Task): View {
-        val barColor = when (t.priority) {
-            2 -> red
-            1 -> blue
-            else -> green
-        }
+        val barColor = if (t.priority == 2) red else green
 
         val outer = FrameLayout(this).apply {
             background = rounded(cardColor, 14)
@@ -758,12 +877,12 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             background = GradientDrawable(
                 GradientDrawable.Orientation.LEFT_RIGHT,
                 intArrayOf(
-                    Color.argb(150, Color.red(barColor), Color.green(barColor), Color.blue(barColor)),
+                    Color.argb(55, Color.red(barColor), Color.green(barColor), Color.blue(barColor)),
                     Color.TRANSPARENT
                 )
             )
         }
-        outer.addView(fade, FrameLayout.LayoutParams(dp(150), MATCH))
+        outer.addView(fade, FrameLayout.LayoutParams(dp(60), MATCH))
 
         val bar = View(this).apply { setBackgroundColor(barColor) }
         outer.addView(bar, FrameLayout.LayoutParams(dp(4), MATCH))
@@ -859,7 +978,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             text = if (open) "🔓" else "🔒"
             textSize = 15f
             gravity = Gravity.CENTER
-            background = rounded(if (open) lockGreen else red, 8)
+            background = rounded(Color.TRANSPARENT, 8, if (open) lockGreen else red, 1)
             setOnClickListener {
                 if (isOpen(t.id)) closeLock(t.id) else openLock(t.id)
                 refresh()
