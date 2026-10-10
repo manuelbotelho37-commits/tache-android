@@ -30,7 +30,14 @@ jobs:
 
       - name: Create Tache signing key
         if: steps.signing-cache.outputs.cache-hit != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          # Une appli déjà publiée doit garder la même clé, sinon la mise à jour ne s'installe pas.
+          if gh release view derniere-version >/dev/null 2>&1; then
+            echo "::error::Clé de signature introuvable alors que l'appli est déjà publiée. Arrêt pour ne pas publier une version impossible à installer."
+            exit 1
+          fi
           mkdir -p .signing
           keytool -genkeypair -v \
             -keystore .signing/tache.keystore \
