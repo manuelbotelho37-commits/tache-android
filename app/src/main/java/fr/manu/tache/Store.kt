@@ -128,6 +128,7 @@ object TaskStore {
             arr.put(o)
         }
         prefs(context).edit().putString(KEY, arr.toString()).commit()
+        AutoBackup.onChange(context)
     }
 
     fun get(context: Context, id: Int): Task? = all(context).firstOrNull { it.id == id }
@@ -184,6 +185,7 @@ object TaskStore {
             val p = prefs(context)
             val next = maxOf(o.optInt("next_id", 1), maxId + 1, p.getInt(KEY_ID, 1))
             p.edit().putString(KEY, arr.toString()).putInt(KEY_ID, next).putBoolean(KEY_SEEDED, true).commit()
+            AutoBackup.onChange(context)
             arr.length()
         } catch (e: Exception) {
             -1

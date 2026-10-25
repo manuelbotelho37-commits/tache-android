@@ -481,6 +481,8 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
 
     override fun onResume() {
         super.onResume()
+        AutoBackup.schedule(this)
+        Thread { AutoBackup.runIfDue(applicationContext) }.start()
         checkUpdate()
         refreshPermissions()
         Reminders.rescheduleAll(this)
@@ -494,8 +496,19 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
 
     private fun showMenu() {
         AlertDialog.Builder(this)
-            .setItems(arrayOf("Sauvegarder mes tâches", "Restaurer une sauvegarde", "Test d'alarme dans 1 minute", "Réglages de l'application")) { _, which ->
-                if (which == 0) {
+            .setItems(arrayOf("Sauvegarder mes tâches", "Restaurer une sauvegarde", "Test d'alarme dans 1 minute", "Réglages de l'application", autoBackupLabel())) { _, which ->
+                if (which == 4) {
+                    Thread {
+                        val ok = AutoBackup.runNow(this)
+                        runOnUiThread {
+                            Toast.makeText(
+                                this,
+                                if (ok) "Sauvegarde faite dans Téléchargements › Tache ✓" else "Sauvegarde automatique impossible",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }.start()
+                } else if (which == 0) {
                     startBackup()
                 } else if (which == 1) {
                     try {
@@ -524,6 +537,12 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
                 }
             }
             .show()
+    }
+
+    private fun autoBackupLabel(): String {
+        val t = AutoBackup.lastAuto(this)
+        return if (t == 0L) "Sauvegarde auto : pas encore faite"
+        else "Sauvegarde auto : " + SimpleDateFormat("d MMM à HH:mm", Locale.FRANCE).format(Date(t))
     }
 
     private fun startBackup() {
