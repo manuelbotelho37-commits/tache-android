@@ -155,6 +155,12 @@ object TaskStore {
         saveAll(context, all(context).filter { it.id != id })
     }
 
+    /** Efface plusieurs tâches en une seule fois. */
+    fun deleteMany(context: Context, ids: Set<Int>) {
+        if (ids.isEmpty()) return
+        saveAll(context, all(context).filter { it.id !in ids })
+    }
+
     /* ---------- Sauvegarde / Restauration ---------- */
     private const val KEY_LAST_BACKUP = "last_backup"
     private const val KEY_BACKUP_START = "backup_start"
