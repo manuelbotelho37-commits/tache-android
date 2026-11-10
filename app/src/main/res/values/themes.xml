@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Tache" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:fontFamily">@font/tache_sans</item>
+        <item name="fontFamily">@font/tache_sans</item>
+    </style>
+</resources>

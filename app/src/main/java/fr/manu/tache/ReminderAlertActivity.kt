@@ -64,9 +64,9 @@ class ReminderAlertActivity : AppCompatActivity() {
             return
         }
 
-        val gold = Color.parseColor("#C4A04F")
-        val navy = Color.parseColor("#14171C")
-        val cardColor = Color.parseColor("#232831")
+        val gold = Color.parseColor("#E2C275")
+        val navy = Color.parseColor("#0C0C0E")
+        val cardColor = Color.parseColor("#17171A")
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -86,7 +86,7 @@ class ReminderAlertActivity : AppCompatActivity() {
             text = "RAPPEL · " + SimpleDateFormat("HH:mm", Locale.FRANCE).format(task.time)
             textSize = 14f
             setTextColor(gold)
-            typeface = Typeface.DEFAULT_BOLD
+            typeface = Look.sansBold(this@ReminderAlertActivity)
             letterSpacing = 0.1f
             gravity = Gravity.CENTER
         }
@@ -95,8 +95,8 @@ class ReminderAlertActivity : AppCompatActivity() {
         val title = TextView(this).apply {
             text = task.title
             textSize = 28f
-            setTextColor(Color.WHITE)
-            typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+            setTextColor(Color.parseColor("#F3EAD6"))
+            typeface = Look.serifBold(this@ReminderAlertActivity)
             gravity = Gravity.CENTER
         }
         card.addView(
@@ -126,9 +126,9 @@ class ReminderAlertActivity : AppCompatActivity() {
             text = "Fait"
             isAllCaps = false
             textSize = 18f
-            typeface = Typeface.DEFAULT_BOLD
+            typeface = Look.sansBold(this@ReminderAlertActivity)
             setTextColor(navy)
-            background = rounded(gold, 16)
+            background = Look.goldFill(dp(16).toFloat())
             setOnClickListener {
                 ReminderActionReceiver.handle(
                     this@ReminderAlertActivity, taskId, ReminderActionReceiver.ACTION_DONE
