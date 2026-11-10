@@ -138,9 +138,9 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         }
         box.addView(TextView(this).apply {
             text = "Dossier"
-            textSize = 24f
-            setTextColor(Color.WHITE)
-            typeface = serifBold
+            textSize = 30f
+            typeface = serif
+            Look.goldText(this)
         })
 
         box.addView(small("Note"))
@@ -171,7 +171,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
                     TextView(this).apply {
                         text = "📄  " + fileName(f)
                         textSize = 15f
-                        setTextColor(Color.WHITE)
+                        setTextColor(ivory)
                         setOnClickListener { openFile(f) }
                     },
                     LinearLayout.LayoutParams(0, WRAP, 1f)
@@ -199,7 +199,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
                 text = label
                 textSize = 13f
                 gravity = Gravity.CENTER
-                setTextColor(Color.parseColor("#D8DCE2"))
+                setTextColor(ivory)
                 background = rounded(Color.TRANSPARENT, 10, lineColor, 1)
                 setPadding(dp(4), dp(10), dp(4), dp(10))
                 setOnClickListener { onClick() }
@@ -349,19 +349,29 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
     private val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
     private val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
 
-    private val gold = Color.parseColor("#C4A04F")
-    private val navy = Color.parseColor("#101216")
-    private val navy2 = Color.parseColor("#15181D")
-    private val cardColor = Color.parseColor("#232831")
-    private val fieldColor = Color.parseColor("#20252D")
-    private val grayText = Color.parseColor("#9AA0A8")
-    private val lineColor = Color.parseColor("#3A414D")
+    // Couleurs de Métro Dodo : noir chaud, or, texte crème.
+    private val gold = Color.parseColor("#D4A94E")
+    private val accent = Color.parseColor("#E2C275")
+    private val ivory = Color.parseColor("#F3EAD6")
+    private val navy = Color.parseColor("#0C0C0E")
+    private val navy2 = Color.parseColor("#17171A")
+    private val cardColor = Color.parseColor("#17171A")
+    private val cardLine = Color.parseColor("#33302A")
+    private val softFill = Color.parseColor("#1F1E1C")
+    private val fieldColor = Color.parseColor("#1F1E1C")
+    private val grayText = Color.parseColor("#A69C86")
+    private val lineColor = Color.parseColor("#4A4130")
     private val red = Color.parseColor("#D9534F")
     private val orange = Color.parseColor("#D98A00")
     private val green = Color.parseColor("#4CAF50")
     private val blue = Color.parseColor("#4285F4")
     private val lockGreen = Color.parseColor("#3BA55D")
-    private val serifBold = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+    private val serif by lazy { Look.serif(this) }
+    private val serifBold by lazy { Look.serifBold(this) }
+    private val sans by lazy { Look.sans(this) }
+    private val sansBold by lazy { Look.sansBold(this) }
+
+    private fun goldFill(radiusDp: Int) = Look.goldFill(dp(radiusDp).toFloat())
 
     private fun dp(x: Int) = (x * resources.displayMetrics.density).toInt()
 
@@ -416,7 +426,15 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             )
         }
 
-        val frame = FrameLayout(this).apply { setBackgroundColor(navy) }
+        val frame = FrameLayout(this).apply {
+            // Fond noir avec une lueur chaude en haut, comme Métro Dodo.
+            background = GradientDrawable().apply {
+                gradientType = GradientDrawable.RADIAL_GRADIENT
+                colors = intArrayOf(Color.parseColor("#26241F"), navy)
+                setGradientCenter(0.3f, 0f)
+                gradientRadius = resources.displayMetrics.widthPixels * 0.9f
+            }
+        }
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -441,17 +459,17 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         }
         titleRow.addView(TextView(this).apply {
             text = "Tâche"
-            textSize = 38f
-            setTextColor(Color.WHITE)
-            typeface = serifBold
+            textSize = 44f
+            typeface = serif
+            Look.goldText(this)
         })
         titleRow.addView(TextView(this).apply {
             text = "+ Ajouter"
-            textSize = 14f
-            typeface = Typeface.DEFAULT_BOLD
+            textSize = 18f
+            typeface = serifBold
             gravity = Gravity.CENTER
             setTextColor(navy)
-            background = rounded(gold, 18)
+            background = goldFill(18)
             setPadding(dp(14), dp(8), dp(14), dp(8))
             setOnClickListener { showEditor(null) }
         }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(14) })
@@ -462,7 +480,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             text = "⚙"
             textSize = 22f
             gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#D8DCE2"))
+            setTextColor(ivory)
             background = rounded(navy2, 12, lineColor, 1)
             setOnClickListener { showMenu() }
         }
@@ -683,7 +701,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         txt.addView(TextView(this).apply {
             text = "Nouvelle version disponible"
             textSize = 15f
-            typeface = Typeface.DEFAULT_BOLD
+            typeface = sansBold
             setTextColor(Color.parseColor("#F3D98F"))
         })
         txt.addView(TextView(this).apply {
@@ -695,10 +713,10 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         box.addView(TextView(this).apply {
             text = "Mettre à jour"
             textSize = 14f
-            typeface = Typeface.DEFAULT_BOLD
+            typeface = sansBold
             gravity = Gravity.CENTER
             setTextColor(navy)
-            background = rounded(gold, 10)
+            background = goldFill(10)
             setPadding(dp(12), dp(10), dp(12), dp(10))
             setOnClickListener { startUpdate() }
         }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(10) })
@@ -719,7 +737,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         txt.addView(TextView(this).apply {
             text = "Pense à sauvegarder tes tâches"
             textSize = 15f
-            typeface = Typeface.DEFAULT_BOLD
+            typeface = sansBold
             setTextColor(Color.parseColor("#F3D98F"))
         })
         txt.addView(TextView(this).apply {
@@ -732,10 +750,10 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         box.addView(TextView(this).apply {
             text = "Sauvegarder"
             textSize = 14f
-            typeface = Typeface.DEFAULT_BOLD
+            typeface = sansBold
             gravity = Gravity.CENTER
             setTextColor(navy)
-            background = rounded(gold, 10)
+            background = goldFill(10)
             setPadding(dp(12), dp(10), dp(12), dp(10))
             setOnClickListener { startBackup() }
         }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(10) })
@@ -792,7 +810,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             text = label
             isAllCaps = false
             background = rounded(Color.parseColor("#B3261E"), 12)
-            setTextColor(Color.WHITE)
+            setTextColor(ivory)
             layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) }
             setOnClickListener { action() }
         }
@@ -800,15 +818,16 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
     private fun tabView(label: String, index: Int): TextView =
         TextView(this).apply {
             text = label
-            textSize = 12f
+            textSize = 13f
             gravity = Gravity.CENTER
             if (tab == index) {
                 setTextColor(navy)
-                typeface = Typeface.DEFAULT_BOLD
-                background = rounded(gold, 12)
+                typeface = sansBold
+                background = goldFill(12)
             } else {
-                setTextColor(Color.parseColor("#D8DCE2"))
-                background = rounded(Color.TRANSPARENT, 12, lineColor, 1)
+                setTextColor(accent)
+                typeface = sansBold
+                background = rounded(softFill, 12, lineColor, 1)
             }
             maxLines = 2
             setPadding(dp(2), dp(8), dp(2), dp(8))
@@ -876,7 +895,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             highlightId = -1
             hv.background = rounded(cardColor, 14, gold, 2)
             listScroll.post { listScroll.smoothScrollTo(0, maxOf(0, hv.top - dp(10))) }
-            handler.postDelayed({ hv.background = rounded(cardColor, 14) }, 4000L)
+            handler.postDelayed({ hv.background = rounded(cardColor, 14, cardLine, 1) }, 4000L)
         }
     }
 
@@ -906,7 +925,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             gravity = Gravity.CENTER_VERTICAL or Gravity.END
             layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) }
         }
-        val soft = Color.parseColor("#D8DCE2")
+        val soft = ivory
         if (!selectMode) {
             bar.addView(barButton("Sélectionner", soft) {
                 selectMode = true
@@ -1048,7 +1067,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             setText(value)
             this.hint = hint
             setHintTextColor(grayText)
-            setTextColor(Color.WHITE)
+            setTextColor(ivory)
             textSize = 16f
             background = fieldBox()
             setPadding(dp(14), dp(12), dp(14), dp(12))
@@ -1068,7 +1087,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             text = label
             textSize = 18f
             gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#D8DCE2"))
+            setTextColor(ivory)
             setOnClickListener { onClick() }
         }
 
@@ -1086,11 +1105,11 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
                 val v = views[i]
                 if (i == sel) {
                     v.setTextColor(navy)
-                    v.typeface = Typeface.DEFAULT_BOLD
-                    v.background = rounded(gold, radius)
+                    v.typeface = sansBold
+                    v.background = Look.goldFill(dp(radius).toFloat())
                 } else {
-                    v.setTextColor(Color.parseColor("#D8DCE2"))
-                    v.typeface = Typeface.DEFAULT
+                    v.setTextColor(ivory)
+                    v.typeface = sans
                     v.background = rounded(Color.TRANSPARENT, radius, lineColor, 1)
                 }
             }
@@ -1121,7 +1140,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
     private fun row(t: Task): View {
 
         val outer = FrameLayout(this).apply {
-            background = rounded(cardColor, 14)
+            background = rounded(cardColor, 14, cardLine, 1)
             clipToOutline = true
             layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) }
             setOnClickListener {
@@ -1147,7 +1166,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             gravity = Gravity.CENTER
             setTextColor(navy)
             background = if (filled) rounded(gold, 10, gold, 1)
-            else rounded(Color.TRANSPARENT, 10, if (picking) Color.parseColor("#D8DCE2") else gold, 1)
+            else rounded(Color.TRANSPARENT, 10, if (picking) ivory else gold, 1)
             setOnClickListener {
                 if (picking) outer.performClick()
                 else if (!needUnlock(t)) toggleDone(t)
@@ -1168,7 +1187,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         mid.addView(TextView(this).apply {
             text = t.title
             textSize = 16f
-            setTextColor(if (t.done || t.paused) grayText else Color.WHITE)
+            setTextColor(if (t.done || t.paused) grayText else ivory)
             if (t.done) paintFlags = paintFlags or Paint.STRIKE_THRU_TEXT_FLAG
         })
         val parts = mutableListOf<String>()
@@ -1182,7 +1201,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             val sp = android.text.SpannableString(line)
             val u = line.indexOf("Urgent")
             if (t.priority == 2 && u >= 0) {
-                sp.setSpan(android.text.style.ForegroundColorSpan(gold), u, u + 6, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sp.setSpan(android.text.style.ForegroundColorSpan(accent), u, u + 6, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 sp.setSpan(android.text.style.StyleSpan(Typeface.BOLD), u, u + 6, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
             text = sp
@@ -1194,9 +1213,9 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         val pause = TextView(this).apply {
             text = if (t.paused) "▶" else "‖"
             textSize = 16f
-            typeface = Typeface.DEFAULT_BOLD
+            typeface = sansBold
             gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#D8DCE2"))
+            setTextColor(ivory)
             background = rounded(Color.TRANSPARENT, 8, lineColor, 1)
             setOnClickListener { if (!needUnlock(t)) togglePause(t) }
         }
@@ -1319,9 +1338,9 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         }
         box.addView(TextView(this).apply {
             text = "Dossier"
-            textSize = 24f
-            setTextColor(Color.WHITE)
-            typeface = serifBold
+            textSize = 30f
+            typeface = serif
+            Look.goldText(this)
         })
 
         box.addView(small("Note"))
@@ -1352,7 +1371,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
                     TextView(this).apply {
                         text = "📄  " + fileName(f)
                         textSize = 15f
-                        setTextColor(Color.WHITE)
+                        setTextColor(ivory)
                         setOnClickListener { openFile(f) }
                     },
                     LinearLayout.LayoutParams(0, WRAP, 1f)
@@ -1418,9 +1437,9 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         }
         box.addView(TextView(this).apply {
             text = if (existing == null) "Nouveau" else "Modifier"
-            textSize = 24f
-            setTextColor(Color.WHITE)
-            typeface = serifBold
+            textSize = 30f
+            typeface = serif
+            Look.goldText(this)
         })
 
         box.addView(
@@ -1450,14 +1469,14 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         val dateBtn = TextView(this).apply {
             textSize = 15f
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
+            setTextColor(ivory)
             background = fieldBox()
             setPadding(dp(8), dp(12), dp(8), dp(12))
         }
         val timeBtn = TextView(this).apply {
             textSize = 15f
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
+            setTextColor(ivory)
             background = fieldBox()
             setPadding(dp(8), dp(12), dp(8), dp(12))
         }
@@ -1519,12 +1538,12 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             if (priority == 2) {
                 urgentBtn.text = "✓ Urgent"
                 urgentBtn.setTextColor(navy)
-                urgentBtn.typeface = Typeface.DEFAULT_BOLD
-                urgentBtn.background = rounded(gold, 12)
+                urgentBtn.typeface = sansBold
+                urgentBtn.background = goldFill(12)
             } else {
                 urgentBtn.text = "Urgent"
-                urgentBtn.setTextColor(Color.parseColor("#D8DCE2"))
-                urgentBtn.typeface = Typeface.DEFAULT
+                urgentBtn.setTextColor(ivory)
+                urgentBtn.typeface = sans
                 urgentBtn.background = rounded(Color.TRANSPARENT, 12, lineColor, 1)
             }
         }
@@ -1538,14 +1557,14 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         box.addView(small("Dossier"))
         val dossierBtn = TextView(this).apply {
             textSize = 15f
-            setTextColor(Color.WHITE)
+            setTextColor(ivory)
             background = fieldBox()
             setPadding(dp(14), dp(12), dp(14), dp(12))
         }
         fun paintDossier() {
             val has = note.isNotEmpty() || link.isNotEmpty() || files.isNotEmpty()
             dossierBtn.text = if (has) "📎  Dossier  ●" else "📎  Dossier"
-            dossierBtn.setTextColor(if (has) gold else Color.WHITE)
+            dossierBtn.setTextColor(if (has) gold else ivory)
         }
         paintDossier()
         dossierBtn.setOnClickListener {
