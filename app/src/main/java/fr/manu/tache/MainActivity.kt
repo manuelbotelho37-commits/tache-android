@@ -266,7 +266,16 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
     private lateinit var permBox: LinearLayout
     private lateinit var listBox: LinearLayout
     private lateinit var tabsBox: LinearLayout
+    private lateinit var listScroll: ScrollView
+    private lateinit var selectBox: LinearLayout
     private var tab = 2
+
+    /** Tâche à montrer (cadre doré) juste après l'avoir ajoutée. */
+    private var highlightId = -1
+
+    /** Sélection multiple dans « Terminées ». */
+    private var selectMode = false
+    private val selected = mutableSetOf<Int>()
 
     private var speechTarget: EditText? = null
     private var pickedFile: ((Uri) -> Unit)? = null
@@ -466,7 +475,12 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         permBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(permBox)
 
+        // Barre de sélection de « Terminées » : fixe, reste visible pendant qu'on fait défiler.
+        selectBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(selectBox)
+
         val scroll = ScrollView(this)
+        listScroll = scroll
         listBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(0, 0, 0, dp(24))
@@ -799,6 +813,10 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             maxLines = 2
             setPadding(dp(2), dp(8), dp(2), dp(8))
             setOnClickListener {
+                if (tab != index) {
+                    selectMode = false
+                    selected.clear()
+                }
                 tab = index
                 refresh()
             }
@@ -834,6 +852,11 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             2 -> todoList
             else -> doneList
         }
+        // Ne garder dans la sélection que des tâches encore présentes.
+        selected.retainAll(doneList.map { it.id }.toSet())
+        if (tab != 3 || doneList.isEmpty()) selectMode = false
+        selectBox.removeAllViews()
+        if (tab == 3 && doneList.isNotEmpty()) selectBox.addView(selectBar(doneList))
         if (shown.isEmpty()) {
             listBox.addView(TextView(this).apply {
                 text = "Rien ici pour l'instant."
@@ -842,7 +865,123 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
                 setPadding(dp(4), dp(24), dp(4), 0)
             })
         }
-        for (t in shown) listBox.addView(row(t))
+        var target: View? = null
+        for (t in shown) {
+            val v = row(t)
+            if (t.id == highlightId) target = v
+            listBox.addView(v)
+        }
+        val hv = target
+        if (hv != null) {
+            highlightId = -1
+            hv.background = rounded(cardColor, 14, gold, 2)
+            listScroll.post { listScroll.smoothScrollTo(0, maxOf(0, hv.top - dp(10))) }
+            handler.postDelayed({ hv.background = rounded(cardColor, 14) }, 4000L)
+        }
+    }
+
+    /** Onglet où une tâche non terminée apparaît en premier. */
+    private fun tabFor(t: Task): Int = when {
+        t.done -> 3
+        dayDiff(t.time) <= 0 -> 0
+        dayDiff(t.time) == 1 -> 1
+        else -> 2
+    }
+
+    private fun barButton(label: String, color: Int, onClick: () -> Unit): TextView =
+        TextView(this).apply {
+            text = label
+            textSize = 13f
+            gravity = Gravity.CENTER
+            setTextColor(color)
+            background = rounded(Color.TRANSPARENT, 10, if (color == red) red else lineColor, 1)
+            setPadding(dp(12), dp(7), dp(12), dp(7))
+            setOnClickListener { onClick() }
+        }
+
+    /** Barre discrète en haut de « Terminées » : Sélectionner / Tout sélectionner / Effacer. */
+    private fun selectBar(doneList: List<Task>): View {
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) }
+        }
+        val soft = Color.parseColor("#D8DCE2")
+        if (!selectMode) {
+            bar.addView(barButton("Sélectionner", soft) {
+                selectMode = true
+                selected.clear()
+                refresh()
+            })
+            return bar
+        }
+        val allSelected = selected.size == doneList.size
+        bar.addView(TextView(this).apply {
+            text = if (selected.isEmpty()) "Touche les tâches à effacer" else "${selected.size} sélectionnée" + if (selected.size > 1) "s" else ""
+            textSize = 13f
+            setTextColor(grayText)
+        }, LinearLayout.LayoutParams(0, WRAP, 1f))
+        bar.addView(barButton(if (allSelected) "Tout désélectionner" else "Tout sélectionner", soft) {
+            if (allSelected) selected.clear() else selected.addAll(doneList.map { it.id })
+            refresh()
+        })
+        bar.addView(barButton("Annuler", soft) {
+            selectMode = false
+            selected.clear()
+            refresh()
+        }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(6) })
+        bar.addView(barButton("Effacer (${selected.size})", if (selected.isEmpty()) grayText else red) {
+            if (selected.isEmpty()) {
+                Toast.makeText(this, "Sélectionne d'abord des tâches", Toast.LENGTH_SHORT).show()
+            } else {
+                confirmDeleteSelected()
+            }
+        }, LinearLayout.LayoutParams(WRAP, WRAP).apply { leftMargin = dp(6) })
+        return bar
+    }
+
+    private fun confirmDeleteSelected() {
+        val ids = selected.toSet()
+        val n = ids.size
+        AlertDialog.Builder(this)
+            .setMessage(
+                (if (n == 1) "Effacer cette tâche terminée ?" else "Effacer ces $n tâches terminées ?") +
+                    "\n\nUne sauvegarde est faite juste avant, dans Téléchargements › Tache."
+            )
+            .setPositiveButton("Oui, effacer") { _, _ ->
+                val app = applicationContext
+                Thread {
+                    val ok = AutoBackup.runNow(app)
+                    runOnUiThread {
+                        if (ok) deleteSelected(ids)
+                        else AlertDialog.Builder(this)
+                            .setMessage("La sauvegarde n'a pas pu être faite. Effacer quand même ?")
+                            .setPositiveButton("Oui, effacer") { _, _ -> deleteSelected(ids) }
+                            .setNegativeButton("Non", null)
+                            .show()
+                    }
+                }.start()
+            }
+            .setNegativeButton("Non", null)
+            .show()
+    }
+
+    private fun deleteSelected(ids: Set<Int>) {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        for (id in ids) {
+            nm.cancel(id)
+            Reminders.cancel(this, id)
+            closeLock(id)
+        }
+        TaskStore.deleteMany(this, ids)
+        selectMode = false
+        selected.clear()
+        refresh()
+        Toast.makeText(
+            this,
+            if (ids.size == 1) "1 tâche effacée" else "${ids.size} tâches effacées",
+            Toast.LENGTH_SHORT
+        ).show()
     }private fun toggleDone(t: Task) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.cancel(t.id)
@@ -985,8 +1124,15 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             background = rounded(cardColor, 14)
             clipToOutline = true
             layoutParams = LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) }
-            setOnClickListener { if (!needUnlock(t)) showEditor(t) }
+            setOnClickListener {
+                if (selectMode && t.done) {
+                    if (!selected.remove(t.id)) selected.add(t.id)
+                    refresh()
+                } else if (!needUnlock(t)) showEditor(t)
+            }
         }
+        val picking = selectMode && t.done
+        if (picking && t.id in selected) outer.background = rounded(cardColor, 14, gold, 1)
 
 
         val line = LinearLayout(this).apply {
@@ -995,13 +1141,17 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         }
 
         val check = TextView(this).apply {
-            text = if (t.done) "✓" else ""
+            val filled = if (picking) t.id in selected else t.done
+            text = if (filled) "✓" else ""
             textSize = 11f
             gravity = Gravity.CENTER
             setTextColor(navy)
-            background = if (t.done) rounded(gold, 10, gold, 1)
-            else rounded(Color.TRANSPARENT, 10, gold, 1)
-            setOnClickListener { if (!needUnlock(t)) toggleDone(t) }
+            background = if (filled) rounded(gold, 10, gold, 1)
+            else rounded(Color.TRANSPARENT, 10, if (picking) Color.parseColor("#D8DCE2") else gold, 1)
+            setOnClickListener {
+                if (picking) outer.performClick()
+                else if (!needUnlock(t)) toggleDone(t)
+            }
         }
         line.addView(
             check,
@@ -1099,6 +1249,14 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
                 rightMargin = dp(10)
             }
         )
+
+        if (picking) {
+            // En mode sélection, on cache les petits boutons pour éviter les erreurs.
+            pause.visibility = View.GONE
+            clip.visibility = View.GONE
+            lock.visibility = View.GONE
+            mid.setPadding(0, dp(14), dp(14), dp(14))
+        }
 
         outer.addView(line, FrameLayout.LayoutParams(MATCH, WRAP))
         return outer
@@ -1406,6 +1564,8 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             .setNegativeButton("Annuler", null)
         if (existing != null) b.setNeutralButton("Supprimer", null)
         val dialog = b.create()
+        // Un appui à côté de la fenêtre ne doit pas faire perdre la tâche en cours.
+        dialog.setCanceledOnTouchOutside(false)
         dialog.show()
         dialog.window?.setBackgroundDrawable(rounded(navy2, 18))
 
@@ -1438,6 +1598,13 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             if (existing == null) {
                 val created = TaskStore.add(this, task)
                 Reminders.schedule(this, created)
+                // Aller dans l'onglet où la nouvelle tâche apparaît, et la montrer.
+                tab = tabFor(created)
+                selectMode = false
+                selected.clear()
+                highlightId = created.id
+                val where = listOf("Aujourd'hui", "Demain", "À faire", "Terminées")[tab]
+                Toast.makeText(this, "Tâche ajoutée dans « $where » ✓", Toast.LENGTH_LONG).show()
             } else {
                 TaskStore.update(this, task)
                 Reminders.cancel(this, task.id)
@@ -1447,6 +1614,25 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         }
 
         dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(grayText)
+
+        // Bouton retour : si une nouvelle tâche est écrite, proposer de l'enregistrer.
+        dialog.setOnKeyListener { _, keyCode, event ->
+            if (keyCode == android.view.KeyEvent.KEYCODE_BACK &&
+                event.action == android.view.KeyEvent.ACTION_UP &&
+                existing == null && titleField.text.toString().isNotBlank()
+            ) {
+                AlertDialog.Builder(this)
+                    .setMessage("Enregistrer cette tâche ?")
+                    .setPositiveButton("Enregistrer") { _, _ -> pos.performClick() }
+                    .setNegativeButton("Non, l'oublier") { _, _ -> dialog.dismiss() }
+                    .show()
+                true
+            } else if (keyCode == android.view.KeyEvent.KEYCODE_BACK &&
+                existing == null && titleField.text.toString().isNotBlank()
+            ) {
+                true
+            } else false
+        }
 
         if (existing != null) {
             val del = dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
