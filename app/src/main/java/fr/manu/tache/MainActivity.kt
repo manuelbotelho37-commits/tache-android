@@ -1020,6 +1020,35 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         refresh()
     }
 
+    /**
+     * Rond de validation : une tâche simple est effacée après confirmation
+     * (avec une sauvegarde juste avant). Une tâche qui se répète passe à la
+     * prochaine fois, et une tâche terminée revient dans la liste, comme avant.
+     */
+    private fun checkTapped(t: Task) {
+        if (t.done || Reminders.isRepeating(t.repeat)) {
+            toggleDone(t)
+            return
+        }
+        AlertDialog.Builder(this)
+            .setMessage("Es-tu sûr de vouloir supprimer la tâche ?\n\n« ${t.title.lineSequence().first()} »")
+            .setPositiveButton("Oui, supprimer") { _, _ ->
+                val app = applicationContext
+                Thread {
+                    AutoBackup.runNow(app)
+                    runOnUiThread {
+                        deleteTask(t)
+                        Toast.makeText(this, "Tâche supprimée", Toast.LENGTH_SHORT).show()
+                    }
+                }.start()
+            }
+            .setNegativeButton("Non") { _, _ ->
+                closeLock(t.id)
+                refresh()
+            }
+            .show()
+    }
+
     private fun togglePause(t: Task) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (t.paused) {
@@ -1169,7 +1198,7 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             else rounded(Color.TRANSPARENT, 10, if (picking) ivory else gold, 1)
             setOnClickListener {
                 if (picking) outer.performClick()
-                else if (!needUnlock(t)) toggleDone(t)
+                else if (!needUnlock(t)) checkTapped(t)
             }
         }
         line.addView(
