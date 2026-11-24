@@ -1455,7 +1455,14 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
         var link = existing?.link ?: ""
         var files: List<String> = existing?.files ?: emptyList()
         val cal = Calendar.getInstance().apply {
-            timeInMillis = existing?.time ?: (System.currentTimeMillis() + 3_600_000L)
+            if (existing != null) {
+                timeInMillis = existing.time
+            } else {
+                // Nouvelle tâche : le lendemain à 9 h, avec les minutes de l'heure actuelle
+                // (20 h 10 -> demain 9 h 10 ; 6 h 28 -> demain 9 h 28).
+                add(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.HOUR_OF_DAY, 9)
+            }
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
@@ -1464,12 +1471,28 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(18), dp(20), dp(8))
         }
-        box.addView(TextView(this).apply {
+        // Titre à gauche, bouton « Enregistrer » à droite : visible même clavier ouvert.
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        header.addView(TextView(this).apply {
             text = if (existing == null) "Nouveau" else "Modifier"
             textSize = 30f
             typeface = serif
             Look.goldText(this)
-        })
+        }, LinearLayout.LayoutParams(0, WRAP, 1f))
+        val topSave = TextView(this).apply {
+            text = "Enregistrer"
+            textSize = 15f
+            typeface = sansBold
+            setTextColor(navy)
+            gravity = Gravity.CENTER
+            background = goldFill(12)
+            setPadding(dp(18), dp(9), dp(18), dp(9))
+        }
+        header.addView(topSave, LinearLayout.LayoutParams(WRAP, WRAP))
+        box.addView(header)
 
         box.addView(
             segment(
@@ -1660,6 +1683,9 @@ class MainActivity : AppCompatActivity() {private var galleryDone: ((Uri) -> Uni
             }
             dialog.dismiss()
         }
+        // L'enregistrement se fait par le bouton doré du haut ; celui du bas est caché.
+        pos.visibility = android.view.View.GONE
+        topSave.setOnClickListener { pos.performClick() }
 
         dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(grayText)
 
